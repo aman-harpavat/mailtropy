@@ -2,64 +2,19 @@ import { fetchGmailMetadata, normalizeBatch } from "./gmailClient.js";
 import { analyzeEmails } from "./analytics.js";
 import { saveEmails, saveAnalyticsResult, saveLastScanTimestamp } from "./storage.js";
 
-// Uses launchWebAuthFlow instead of getAuthToken to force account picker
-// This allows users to switch between Google accounts
 function getToken(interactive = true) {
   return new Promise((resolve, reject) => {
-    if (!interactive) {
-      // For non-interactive, still try getAuthToken for cached tokens
-      chrome.identity.getAuthToken({ interactive: false }, (token) => {
-        if (chrome.runtime.lastError || !token) {
-          reject(new Error("No cached token available"));
-          return;
-        }
-        resolve(token);
-      });
-      return;
-    }
-
-    // For interactive flow, use launchWebAuthFlow to show account picker
-    const manifest = chrome.runtime.getManifest();
-    const clientId = manifest.oauth2.client_id;
-    const scopes = manifest.oauth2.scopes.join(" ");
-    const redirectUri = chrome.identity.getRedirectURL();
-
-    const authUrl =
-      `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${encodeURIComponent(clientId)}` +
-      `&response_type=token` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&scope=${encodeURIComponent(scopes)}` +
-      `&prompt=select_account`; // This forces account selection
-
-    chrome.identity.launchWebAuthFlow(
-      {
-        url: authUrl,
-        interactive: true
-      },
-      (redirectUrl) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-
-        if (!redirectUrl) {
-          reject(new Error("No redirect URL returned"));
-          return;
-        }
-
-        // Extract access token from redirect URL
-        const urlParams = new URLSearchParams(redirectUrl.split("#")[1]);
-        const token = urlParams.get("access_token");
-
-        if (!token) {
-          reject(new Error("No access token in redirect URL"));
-          return;
-        }
-
-        resolve(token);
+    chrome.identity.getAuthToken({ interactive }, (token) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
       }
-    );
+      if (!token) {
+        reject(new Error("No OAuth token returned."));
+        return;
+      }
+      resolve(token);
+    });
   });
 }
 

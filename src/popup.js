@@ -90,10 +90,10 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
   ].join("\n");
 }
 
-export function setLoadingState(message = "Analyzing inbox...") {
+export function setLoadingState() {
   analyzeBtn.disabled = true;
   statusEl.classList.remove("error");
-  statusEl.textContent = message;
+  statusEl.textContent = "Analyzing inbox...";
 }
 
 export function setErrorState(message) {
@@ -120,7 +120,7 @@ export async function loadExistingData() {
 }
 
 export async function runAnalysis() {
-  setLoadingState("Analyzing inbox...");
+  setLoadingState();
 
   try {
     const response = await sendRuntimeMessage({ type: "INBOXIQ_RUN_ANALYTICS" });
