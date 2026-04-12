@@ -1,26 +1,38 @@
-async function testGmailApi(token) {
-  if (!token || typeof token !== "string") {
-    throw new Error("Missing OAuth token.");
-  }
+import { fetchGmailMetadata, normalizeBatch } from "./gmailClient.js";
+import { analyzeEmails } from "./analytics.js";
+import { saveEmails, saveAnalyticsResult, saveLastScanTimestamp } from "./storage.js";
 
-  const response = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1",
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`
+function getToken(interactive = true) {
+  return new Promise((resolve, reject) => {
+    chrome.identity.getAuthToken({ interactive }, (token) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
       }
-    }
-  );
+      if (!token) {
+        reject(new Error("No OAuth token returned."));
+        return;
+      }
+      resolve(token);
+    });
+  });
+}
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gmail API error ${response.status}: ${errorText || response.statusText}`);
-  }
+async function runAnalyzePipeline() {
+  const token = await getToken(true);
+  const rawMessages = await fetchGmailMetadata(token);
+  const normalizedEmails = normalizeBatch(rawMessages);
+  const analyticsResult = analyzeEmails(normalizedEmails);
+  const nextScanTimestamp = Date.now();
 
-  const data = await response.json();
-  console.log("[Mailtropy OAuth Test] Gmail API response:", data);
-  return data;
+  await saveEmails(normalizedEmails);
+  await saveAnalyticsResult(analyticsResult);
+  await saveLastScanTimestamp(nextScanTimestamp);
+
+  return {
+    analyticsResult,
+    lastScanTimestamp: nextScanTimestamp
+  };
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -28,9 +40,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
-  if (message.type === "INBOXIQ_TEST_OAUTH") {
-    testGmailApi(message.token)
-      .then(() => sendResponse({ ok: true }))
+  if (message.type === "INBOXIQ_RUN_ANALYTICS") {
+    runAnalyzePipeline()
+      .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "Unknown error" }));
     return true;
   }
