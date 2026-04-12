@@ -37,13 +37,6 @@ button {
   cursor: pointer;
 }
 
-.secondary-button {
-  margin-top: 8px;
-  border: 1px solid #94a3b8;
-  color: #334155;
-  background: #ffffff;
-}
-
 button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
@@ -73,4 +66,32 @@ pre {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.info-box {
+  margin-top: 16px;
+  padding: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.info-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: #1e40af;
+  font-size: 12px;
+}
+
+.info-text {
+  margin: 0;
+  color: #1e3a8a;
+}
+
+.info-text strong {
+  display: block;
+  margin-top: 8px;
+  color: #1e40af;
 }

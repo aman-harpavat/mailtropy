@@ -12,12 +12,27 @@
       <p class="subtitle">Privacy-first Gmail metadata insights</p>
 
       <button id="analyzeBtn" type="button">Analyze Inbox</button>
-      <button id="switchAccountBtn" class="secondary-button" type="button">Switch Account</button>
       <p id="status" class="status" aria-live="polite"></p>
 
       <section class="results" aria-label="Analytics output">
         <pre id="output">No analysis yet.</pre>
       </section>
+
+      <div class="info-box">
+        <p class="info-title">ℹ️ Using Different Google Accounts</p>
+        <p class="info-text">
+          This extension analyzes the Gmail inbox of your current Chrome profile's Google account.
+          <br /><br />
+          <strong>To analyze a different Gmail account:</strong>
+          <br />1. Click your Chrome profile icon (top-right corner of browser)
+          <br />2. Select "Add" to create a new profile
+          <br />3. Sign in with the Google account you want to analyze
+          <br />4. Load this extension in that profile
+          <br />5. Click "Analyze Inbox"
+          <br /><br />
+          <strong>Quick switch:</strong> Use the profile switcher (top-right) to toggle between your profiles.
+        </p>
+      </div>
     </main>
 
     <script type="module" src="src/popup.js"></script>
