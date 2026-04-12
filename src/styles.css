@@ -37,6 +37,13 @@ button {
   cursor: pointer;
 }
 
+.secondary-button {
+  margin-top: 8px;
+  border: 1px solid #94a3b8;
+  color: #334155;
+  background: #ffffff;
+}
+
 button:disabled {
   opacity: 0.65;
   cursor: not-allowed;

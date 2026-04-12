@@ -1,4 +1,5 @@
 const analyzeBtn = document.getElementById("analyzeBtn");
+const switchAccountBtn = document.getElementById("switchAccountBtn");
 const statusEl = document.getElementById("status");
 const outputEl = document.getElementById("output");
 
@@ -90,14 +91,20 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
   ].join("\n");
 }
 
-export function setLoadingState() {
+export function setLoadingState(message = "Analyzing inbox...") {
   analyzeBtn.disabled = true;
+  if (switchAccountBtn) {
+    switchAccountBtn.disabled = true;
+  }
   statusEl.classList.remove("error");
-  statusEl.textContent = "Analyzing inbox...";
+  statusEl.textContent = message;
 }
 
 export function setErrorState(message) {
   analyzeBtn.disabled = false;
+  if (switchAccountBtn) {
+    switchAccountBtn.disabled = false;
+  }
   statusEl.classList.add("error");
   statusEl.textContent = message || "Analysis failed.";
 }
@@ -120,7 +127,7 @@ export async function loadExistingData() {
 }
 
 export async function runAnalysis() {
-  setLoadingState();
+  setLoadingState("Analyzing inbox...");
 
   try {
     const response = await sendRuntimeMessage({ type: "INBOXIQ_RUN_ANALYTICS" });
@@ -136,6 +143,9 @@ export async function runAnalysis() {
     }
 
     analyzeBtn.disabled = false;
+    if (switchAccountBtn) {
+      switchAccountBtn.disabled = false;
+    }
     statusEl.classList.remove("error");
     statusEl.textContent = "Analysis complete";
     renderDashboard(analyticsResult, lastScanTimestamp);
@@ -144,8 +154,33 @@ export async function runAnalysis() {
   }
 }
 
+async function runSwitchAccount() {
+  setLoadingState("Signing out...");
+
+  try {
+    const response = await sendRuntimeMessage({ type: "REVOKE_TOKEN" });
+    if (!response?.ok) {
+      throw new Error(response?.error || "Failed to switch account.");
+    }
+
+    analyzeBtn.disabled = false;
+    if (switchAccountBtn) {
+      switchAccountBtn.disabled = false;
+    }
+
+    statusEl.classList.remove("error");
+    statusEl.textContent = "Signed out. Click Analyze to sign in with a different account";
+    outputEl.textContent = "";
+  } catch (error) {
+    setErrorState(error?.message || "Failed to switch account.");
+  }
+}
+
 export async function init() {
   analyzeBtn.addEventListener("click", runAnalysis);
+  if (switchAccountBtn) {
+    switchAccountBtn.addEventListener("click", runSwitchAccount);
+  }
 
   try {
     await loadExistingData();
