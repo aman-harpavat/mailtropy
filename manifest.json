@@ -8,12 +8,13 @@
     "default_popup": "popup.html"
   },
   "background": {
-    "service_worker": "src/background.js"
+    "service_worker": "src/background.js",
+    "type": "module"
   },
   "permissions": ["identity", "storage"],
   "host_permissions": ["https://www.googleapis.com/*"],
   "oauth2": {
-    "client_id": "REPLACE_WITH_OAUTH_CLIENT_ID.apps.googleusercontent.com",
+    "client_id": "glkjpldpaiadjceecnnnkjifmdidojbp.apps.googleusercontent.com",
     "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
   }
 }
