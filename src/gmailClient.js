@@ -1,87 +1,144 @@
-const GMAIL_BASE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
+const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
+const LIST_PAGE_SIZE = 500;
+const MAX_MESSAGES = 20000;
+const BATCH_SIZE = 100;
+const BATCH_DELAY_MS = 150;
+const MAX_RETRIES = 3;
+const BACKOFF_BASE_MS = 500;
 
-function buildUrl(path, params = {}) {
-  const url = new URL(path, GMAIL_BASE_URL + "/");
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, String(value));
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isQuotaRelated403(errorPayload) {
+  const reasons = errorPayload?.error?.errors
+    ?.map((item) => item?.reason)
+    .filter((reason) => typeof reason === "string");
+
+  if (!Array.isArray(reasons)) {
+    return false;
+  }
+
+  return reasons.some((reason) =>
+    ["rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded", "dailyLimitExceeded"].includes(reason)
+  );
+}
+
+async function gmailGet(url, accessToken, fetchImpl = fetch) {
+  for (let retry = 0; ; retry += 1) {
+    const response = await fetchImpl(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json"
+      }
+    });
+
+    const text = await response.text();
+    let payload = {};
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = {};
+      }
     }
-  });
+    const retryable = response.status === 429 || (response.status === 403 && isQuotaRelated403(payload));
+
+    if (response.ok) {
+      return payload;
+    }
+
+    if (retryable && retry < MAX_RETRIES) {
+      const delay = BACKOFF_BASE_MS * (2 ** retry);
+      await sleep(delay);
+      continue;
+    }
+
+    throw new Error(`Gmail API error (${response.status}): ${text || response.statusText}`);
+  }
+}
+
+function buildListUrl(pageToken) {
+  const url = new URL(GMAIL_MESSAGES_URL);
+  url.searchParams.set("maxResults", String(LIST_PAGE_SIZE));
+  if (pageToken) {
+    url.searchParams.set("pageToken", pageToken);
+  }
   return url.toString();
 }
 
-async function gmailFetch(url, token, fetchImpl = fetch) {
-  const response = await fetchImpl(url, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gmail API error (${response.status})`);
-  }
-
-  return response.json();
+function buildMetadataUrl(messageId) {
+  const url = new URL(`${GMAIL_MESSAGES_URL}/${messageId}`);
+  url.searchParams.set("format", "metadata");
+  url.searchParams.append("metadataHeaders", "From");
+  url.searchParams.append("metadataHeaders", "List-Unsubscribe");
+  url.searchParams.set("fields", "id,threadId,internalDate,labelIds,sizeEstimate,payload/headers");
+  return url.toString();
 }
 
-function readHeader(headers, headerName) {
-  const match = (headers || []).find(
-    (h) => typeof h?.name === "string" && h.name.toLowerCase() === headerName.toLowerCase()
-  );
-  return match?.value ?? null;
+function chunk(items, size) {
+  const result = [];
+  for (let i = 0; i < items.length; i += size) {
+    result.push(items.slice(i, i + size));
+  }
+  return result;
 }
 
 /**
- * Gmail API wrapper. Only reads metadata headers needed by product constraints.
- * @param {{ getToken: () => Promise<string>, fetchImpl?: typeof fetch }} deps
+ * Fetches raw Gmail metadata responses for up to 20,000 unique messages.
+ * @param {string} accessToken
+ * @param {{ fetchImpl?: typeof fetch }} options
+ * @returns {Promise<object[]>}
  */
-export function createGmailClient({ getToken, fetchImpl = fetch }) {
-  if (typeof getToken !== "function") {
-    throw new Error("createGmailClient requires getToken()");
+export async function fetchGmailMetadata(accessToken, { fetchImpl = fetch } = {}) {
+  if (!accessToken || typeof accessToken !== "string") {
+    throw new Error("fetchGmailMetadata requires a valid accessToken string.");
   }
 
-  async function listMessageIds(maxResults = 50) {
-    const token = await getToken();
-    const url = buildUrl("", {
-      maxResults,
-      fields: "messages/id"
-    });
+  const uniqueMessageIds = new Set();
+  let nextPageToken;
 
-    const data = await gmailFetch(url, token, fetchImpl);
-    return Array.isArray(data.messages) ? data.messages.map((m) => m.id).filter(Boolean) : [];
+  do {
+    const page = await gmailGet(buildListUrl(nextPageToken), accessToken, fetchImpl);
+    const messages = Array.isArray(page?.messages) ? page.messages : [];
+
+    for (const message of messages) {
+      if (typeof message?.id === "string") {
+        uniqueMessageIds.add(message.id);
+      }
+      if (uniqueMessageIds.size >= MAX_MESSAGES) {
+        break;
+      }
+    }
+
+    nextPageToken = page?.nextPageToken;
+  } while (nextPageToken && uniqueMessageIds.size < MAX_MESSAGES);
+
+  const ids = Array.from(uniqueMessageIds);
+  const batches = chunk(ids, BATCH_SIZE);
+  const results = [];
+  const processedIds = new Set();
+
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+    const batch = batches[batchIndex];
+    const batchResults = await Promise.all(
+      batch.map(async (id) => {
+        if (processedIds.has(id)) {
+          return null;
+        }
+        const metadata = await gmailGet(buildMetadataUrl(id), accessToken, fetchImpl);
+        processedIds.add(id);
+        return metadata;
+      })
+    );
+
+    results.push(...batchResults.filter(Boolean));
+
+    if (batchIndex < batches.length - 1) {
+      await sleep(BATCH_DELAY_MS);
+    }
   }
 
-  async function getMessageMetadata(messageId) {
-    const token = await getToken();
-    const url = buildUrl(messageId, {
-      format: "metadata",
-      metadataHeaders: "From",
-      fields: "id,payload/headers"
-    });
-
-    // Add second header key explicitly to ensure only required metadata is fetched.
-    const urlObj = new URL(url);
-    urlObj.searchParams.append("metadataHeaders", "List-Unsubscribe");
-
-    const data = await gmailFetch(urlObj.toString(), token, fetchImpl);
-    const headers = data?.payload?.headers || [];
-
-    return {
-      id: data?.id || messageId,
-      from: readHeader(headers, "From") || "unknown",
-      listUnsubscribe: readHeader(headers, "List-Unsubscribe")
-    };
-  }
-
-  async function fetchNormalizedEmails(maxResults = 50) {
-    const ids = await listMessageIds(maxResults);
-    const emails = await Promise.all(ids.map((id) => getMessageMetadata(id)));
-    return emails;
-  }
-
-  return {
-    fetchNormalizedEmails
-  };
+  return results;
 }
