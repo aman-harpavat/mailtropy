@@ -14,7 +14,7 @@
   "permissions": ["identity", "storage"],
   "host_permissions": ["https://www.googleapis.com/*"],
   "oauth2": {
-    "client_id": "810560848692-6eos4v2nb21e80v5f4nf1e6hbflgi1l5.apps.googleusercontent.com",
+    "client_id": "810560848692-0r40a78s1k5d30vvjjlf1i60hm2uc4i9.apps.googleusercontent.com",
     "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
   }
 }
