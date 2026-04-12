@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Mailtropy",
+  "version": "0.1.0",
+  "description": "Privacy-first Gmail insights with read-only metadata analytics.",
+  "action": {
+    "default_title": "Mailtropy",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "permissions": ["identity", "storage"],
+  "host_permissions": ["https://www.googleapis.com/*"],
+  "oauth2": {
+    "client_id": "REPLACE_WITH_OAUTH_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
+  }
+}
