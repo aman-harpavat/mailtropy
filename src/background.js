@@ -1,6 +1,7 @@
 import { fetchGmailMetadata, normalizeBatch } from "./gmailClient.js";
 import { analyzeEmails } from "./analytics.js";
 import { saveEmails, saveAnalyticsResult, saveLastScanTimestamp } from "./storage.js";
+import { MESSAGE_TYPES } from "./constants.js";
 
 function getToken(interactive = true) {
   return new Promise((resolve, reject) => {
@@ -40,10 +41,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
-  if (message.type === "Mailtropy_RUN_ANALYTICS") {
+  if (message.type === MESSAGE_TYPES.RUN_ANALYTICS) {
     runAnalyzePipeline()
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "Unknown error" }));
     return true;
   }
 });
+
+

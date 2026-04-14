@@ -25,7 +25,7 @@ h1 {
   color: #475569;
 }
 
-button {
+.primary-btn {
   width: 100%;
   border: none;
   border-radius: 8px;
@@ -37,7 +37,8 @@ button {
   cursor: pointer;
 }
 
-button:disabled {
+.primary-btn:disabled,
+.refresh-btn:disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }
@@ -58,6 +59,62 @@ button:disabled {
   border-radius: 8px;
   padding: 10px;
   background: #ffffff;
+}
+
+.data-scope-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.data-scope-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.data-scope-subtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.data-scope-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-scope-last-scan {
+  margin: 0;
+  font-size: 12px;
+  color: #334155;
+}
+
+.refresh-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+@media (min-width: 360px) {
+  .data-scope-banner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
 }
 
 pre {

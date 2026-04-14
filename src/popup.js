@@ -1,6 +1,12 @@
+import { MESSAGE_TYPES } from "./constants.js";
+
 const analyzeBtn = document.getElementById("analyzeBtn");
+const refreshBtn = document.getElementById("refreshBtn");
 const statusEl = document.getElementById("status");
 const outputEl = document.getElementById("output");
+const dataScopeBannerEl = document.getElementById("dataScopeBanner");
+const dataScopeSummaryEl = document.getElementById("dataScopeSummary");
+const dataScopeLastScanEl = document.getElementById("dataScopeLastScan");
 
 function sendRuntimeMessage(message) {
   return new Promise((resolve, reject) => {
@@ -80,6 +86,44 @@ export function renderTimestamp(lastScanTimestamp) {
   return `Last Scan: ${new Date(numeric).toLocaleString()}`;
 }
 
+function formatBannerTimestamp(lastScanTimestamp) {
+  const numeric = Number(lastScanTimestamp);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "Not available";
+  }
+
+  const date = new Date(numeric);
+  const datePart = date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+  const timePart = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  });
+
+  return `${datePart}, ${timePart}`;
+}
+
+function hideDataScopeBanner() {
+  if (dataScopeBannerEl) {
+    dataScopeBannerEl.hidden = true;
+  }
+}
+
+function renderDataScopeBanner(analyticsResult, lastScanTimestamp) {
+  if (!dataScopeBannerEl || !dataScopeSummaryEl || !dataScopeLastScanEl) {
+    return;
+  }
+
+  const normalized = normalizeForDashboard(analyticsResult);
+  dataScopeSummaryEl.textContent = `Mailtropy analyzed ${normalized.totalEmails.toLocaleString()} messages from All Mail`;
+  dataScopeLastScanEl.textContent = `Last scan: ${formatBannerTimestamp(lastScanTimestamp)}`;
+  dataScopeBannerEl.hidden = false;
+}
+
 function renderDashboard(analyticsResult, lastScanTimestamp) {
   outputEl.textContent = [
     renderOverview(analyticsResult),
@@ -92,12 +136,18 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
 
 export function setLoadingState() {
   analyzeBtn.disabled = true;
+  if (refreshBtn) {
+    refreshBtn.disabled = true;
+  }
   statusEl.classList.remove("error");
   statusEl.textContent = "Analyzing inbox...";
 }
 
 export function setErrorState(message) {
   analyzeBtn.disabled = false;
+  if (refreshBtn) {
+    refreshBtn.disabled = false;
+  }
   statusEl.classList.add("error");
   statusEl.textContent = message || "Analysis failed.";
 }
@@ -111,11 +161,13 @@ export async function loadExistingData() {
     statusEl.classList.remove("error");
     statusEl.textContent = "No scan yet";
     outputEl.textContent = "Run analysis to see insights";
+    hideDataScopeBanner();
     return;
   }
 
   statusEl.classList.remove("error");
   statusEl.textContent = "Loaded latest analysis";
+  renderDataScopeBanner(analyticsResult, lastScanTimestamp);
   renderDashboard(analyticsResult, lastScanTimestamp);
 }
 
@@ -123,7 +175,7 @@ export async function runAnalysis() {
   setLoadingState();
 
   try {
-    const response = await sendRuntimeMessage({ type: "MAILTROPY_RUN_ANALYTICS" });
+    const response = await sendRuntimeMessage({ type: MESSAGE_TYPES.RUN_ANALYTICS });
     if (!response?.ok) {
       throw new Error(response?.error || "Analysis failed.");
     }
@@ -136,8 +188,12 @@ export async function runAnalysis() {
     }
 
     analyzeBtn.disabled = false;
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+    }
     statusEl.classList.remove("error");
     statusEl.textContent = "Analysis complete";
+    renderDataScopeBanner(analyticsResult, lastScanTimestamp);
     renderDashboard(analyticsResult, lastScanTimestamp);
   } catch (error) {
     setErrorState(error?.message || "Analysis failed.");
@@ -146,12 +202,16 @@ export async function runAnalysis() {
 
 export async function init() {
   analyzeBtn.addEventListener("click", runAnalysis);
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", runAnalysis);
+  }
 
   try {
     await loadExistingData();
   } catch (error) {
     setErrorState(error?.message || "Failed to load existing analysis.");
     outputEl.textContent = "Run analysis to see insights";
+    hideDataScopeBanner();
   }
 }
 

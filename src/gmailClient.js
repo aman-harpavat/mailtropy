@@ -1,8 +1,8 @@
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const LIST_PAGE_SIZE = 500;
 const MAX_MESSAGES = 20000;
-const BATCH_SIZE = 100;
-const BATCH_DELAY_MS = 150;
+const BATCH_SIZE = 20;
+const BATCH_DELAY_MS = 400;
 const MAX_RETRIES = 3;
 const BACKOFF_BASE_MS = 500;
 
@@ -62,6 +62,7 @@ async function gmailGet(url, accessToken, fetchImpl = fetch) {
 function buildListUrl(pageToken) {
   const url = new URL(GMAIL_MESSAGES_URL);
   url.searchParams.set("maxResults", String(LIST_PAGE_SIZE));
+
   if (pageToken) {
     url.searchParams.set("pageToken", pageToken);
   }
