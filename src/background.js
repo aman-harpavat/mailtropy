@@ -40,7 +40,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
-  if (message.type === "INBOXIQ_RUN_ANALYTICS") {
+  if (message.type === "Mailtropy_RUN_ANALYTICS") {
     runAnalyzePipeline()
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message || "Unknown error" }));

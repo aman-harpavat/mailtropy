@@ -123,7 +123,7 @@ export async function runAnalysis() {
   setLoadingState();
 
   try {
-    const response = await sendRuntimeMessage({ type: "INBOXIQ_RUN_ANALYTICS" });
+    const response = await sendRuntimeMessage({ type: "MAILTROPY_RUN_ANALYTICS" });
     if (!response?.ok) {
       throw new Error(response?.error || "Analysis failed.");
     }
