@@ -37,8 +37,7 @@ h1 {
   cursor: pointer;
 }
 
-.primary-btn:disabled,
-.refresh-btn:disabled {
+.primary-btn:disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }
@@ -88,24 +87,13 @@ h1 {
 .data-scope-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
 }
 
 .data-scope-last-scan {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: #334155;
-}
-
-.refresh-btn {
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #0f172a;
-  background: #ffffff;
-  cursor: pointer;
 }
 
 @media (min-width: 360px) {

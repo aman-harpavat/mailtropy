@@ -1,7 +1,6 @@
 import { MESSAGE_TYPES } from "./constants.js";
 
 const analyzeBtn = document.getElementById("analyzeBtn");
-const refreshBtn = document.getElementById("refreshBtn");
 const statusEl = document.getElementById("status");
 const outputEl = document.getElementById("output");
 const dataScopeBannerEl = document.getElementById("dataScopeBanner");
@@ -78,14 +77,6 @@ export function renderTopSenders(analyticsResult) {
   ].join("\n");
 }
 
-export function renderTimestamp(lastScanTimestamp) {
-  const numeric = Number(lastScanTimestamp);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return "Last Scan: Not available";
-  }
-  return `Last Scan: ${new Date(numeric).toLocaleString()}`;
-}
-
 function formatBannerTimestamp(lastScanTimestamp) {
   const numeric = Number(lastScanTimestamp);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -128,26 +119,18 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
   outputEl.textContent = [
     renderOverview(analyticsResult),
     "",
-    renderTopSenders(analyticsResult),
-    "",
-    renderTimestamp(lastScanTimestamp)
+    renderTopSenders(analyticsResult)
   ].join("\n");
 }
 
 export function setLoadingState() {
   analyzeBtn.disabled = true;
-  if (refreshBtn) {
-    refreshBtn.disabled = true;
-  }
   statusEl.classList.remove("error");
   statusEl.textContent = "Analyzing inbox...";
 }
 
 export function setErrorState(message) {
   analyzeBtn.disabled = false;
-  if (refreshBtn) {
-    refreshBtn.disabled = false;
-  }
   statusEl.classList.add("error");
   statusEl.textContent = message || "Analysis failed.";
 }
@@ -188,9 +171,6 @@ export async function runAnalysis() {
     }
 
     analyzeBtn.disabled = false;
-    if (refreshBtn) {
-      refreshBtn.disabled = false;
-    }
     statusEl.classList.remove("error");
     statusEl.textContent = "Analysis complete";
     renderDataScopeBanner(analyticsResult, lastScanTimestamp);
@@ -202,9 +182,6 @@ export async function runAnalysis() {
 
 export async function init() {
   analyzeBtn.addEventListener("click", runAnalysis);
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", runAnalysis);
-  }
 
   try {
     await loadExistingData();
