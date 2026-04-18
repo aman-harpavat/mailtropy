@@ -115,7 +115,7 @@ function renderActionsView() {
     : "";
   
   const afterUnsubscribeLine = subscriptionSearchQuery
-    ? `<p class="after-unsubscribe">After unsubscribing, search for the sender and repeat bulk delete steps.</p>`
+    ? `<p class="after-unsubscribe">After unsubscribing, search for the sender and repeat bulk delete steps</p>`
     : "";
 
   actionsOutputEl.innerHTML = `
@@ -127,21 +127,21 @@ function renderActionsView() {
       ${senderQueryBox}
       ${domainQueryBox}
       <ol class="action-list" start="2">
-        <li class="action-step">Press Enter.</li>
-        <li class="action-step">Switch sorting to "Most recent".</li>
-        <li class="action-step">Click the top checkbox.</li>
-        <li class="action-step"><em>(To delete more than Gmail's default 50 visible emails at once)</em> Click the link that says: "Select all conversations that match this search"</li>
-        <li class="action-step">Click the Delete icon.</li>
-        <li class="action-step">Confirm.</li>
+        <li class="action-step">Press Enter</li>
+        <li class="action-step">Switch sorting to "Most recent"</li>
+        <li class="action-step">Click the top checkbox</li>
+        <li class="action-step">To delete more than Gmail's default 50 visible emails at once, click the link that says: "Select all conversations that match this search"</li>
+        <li class="action-step">Click the Delete icon</li>
+        <li class="action-step">Confirm</li>
       </ol>
     </div>
     <div class="section-divider"></div>
     <h2 class="section-title">Unsubscribe from Subscription Senders</h2>
     <div class="action-block">
       <ol class="action-list">
-        <li class="action-step">Open any recent email from the sender${subscriptionSender ? ` (${subscriptionSender})` : ""}.</li>
-        <li class="action-step">Look near the top of the email for: "Unsubscribe" OR "List-Unsubscribe" link.</li>
-        <li class="action-step">Click unsubscribe and confirm.</li>
+        <li class="action-step">Open any recent email from the sender${subscriptionSender ? ` (${subscriptionSender})` : ""}</li>
+        <li class="action-step">Look near the top of the email for: "Unsubscribe" OR "List-Unsubscribe" link</li>
+        <li class="action-step">Click unsubscribe and confirm</li>
       </ol>
       ${afterUnsubscribeLine}
     </div>
