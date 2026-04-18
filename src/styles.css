@@ -121,6 +121,12 @@ h1 {
   color: #0f172a;
 }
 
+.actions-note {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: #64748b;
+}
+
 .actions-output {
   font-size: 11px;
   line-height: 1.45;

@@ -127,7 +127,7 @@ function renderActionsView() {
       <p class="action-step">2. Press Enter.</p>
       <p class="action-step">3. Switch sorting to "Most recent".</p>
       <p class="action-step">4. Click the top checkbox.</p>
-      <p class="action-step">5. (To delete more than Gmail's default 50 visible emails at once) Click the link that says: "Select all conversations that match this search"</p>
+      <p class="action-step">5. <em>(To delete more than Gmail's default 50 visible emails at once)</em> Click the link that says: "Select all conversations that match this search"</p>
       <p class="action-step">6. Click the Delete icon.</p>
       <p class="action-step">7. Confirm.</p>
     </div>
