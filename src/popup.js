@@ -107,36 +107,43 @@ function renderActionsView() {
   const subscriptionSender = typeof topSubscriptionSender?.sender === "string" ? topSubscriptionSender.sender : "";
   const subscriptionSearchQuery = subscriptionSender ? `from:${subscriptionSender}` : "";
 
-  const senderQueryLine = senderQuery
-    ? `<li>For deleting emails from a specific Sender - <code>${escapeHtml(senderQuery)}</code></li>`
+  const senderQueryBox = senderQuery
+    ? `<p class="query-label">For Sender</p><div class="search-box">${escapeHtml(senderQuery)}</div>`
     : "";
-  const domainQueryLine = domainQuery
-    ? `<li>For deleting emails from a specific Domain - <code>${escapeHtml(domainQuery)}</code></li>`
+  const domainQueryBox = domainQuery
+    ? `<p class="query-label">For Domain</p><div class="search-box">${escapeHtml(domainQuery)}</div>`
     : "";
-  const queryListHtml =
-    senderQueryLine || domainQueryLine ? `<ul class="action-list">${senderQueryLine}${domainQueryLine}</ul>` : "";
-  const subscriptionQueryLine = subscriptionSearchQuery
-    ? `<li>After unsubscribing, search for the sender and repeat bulk delete steps.</li>`
+  
+  const afterUnsubscribeLine = subscriptionSearchQuery
+    ? `<p class="after-unsubscribe">After unsubscribing, search for the sender and repeat bulk delete steps.</p>`
     : "";
 
   actionsOutputEl.innerHTML = `
+    <h2 class="section-title">Bulk Delete Emails from Top Sender or Domain</h2>
     <div class="action-block">
-      <p class="action-heading">Bulk Delete Emails from Top Sender or Domain</p>
-      <p class="action-step">1. In Gmail search bar, type:</p>
-      ${queryListHtml}
-      <p class="action-step">2. Press Enter.</p>
-      <p class="action-step">3. Switch sorting to "Most recent".</p>
-      <p class="action-step">4. Click the top checkbox.</p>
-      <p class="action-step">5. <em>(To delete more than Gmail's default 50 visible emails at once)</em> Click the link that says: "Select all conversations that match this search"</p>
-      <p class="action-step">6. Click the Delete icon.</p>
-      <p class="action-step">7. Confirm.</p>
+      <ol class="action-list">
+        <li class="action-step">In Gmail search bar, type:</li>
+      </ol>
+      ${senderQueryBox}
+      ${domainQueryBox}
+      <ol class="action-list" start="2">
+        <li class="action-step">Press Enter.</li>
+        <li class="action-step">Switch sorting to "Most recent".</li>
+        <li class="action-step">Click the top checkbox.</li>
+        <li class="action-step"><em>(To delete more than Gmail's default 50 visible emails at once)</em> Click the link that says: "Select all conversations that match this search"</li>
+        <li class="action-step">Click the Delete icon.</li>
+        <li class="action-step">Confirm.</li>
+      </ol>
     </div>
+    <div class="section-divider"></div>
+    <h2 class="section-title">Unsubscribe from Subscription Senders</h2>
     <div class="action-block">
-      <p class="action-heading">Unsubscribe from Subscription Senders</p>
-      <p class="action-step">1. Open any recent email from the sender${subscriptionSender ? ` (<code>${escapeHtml(subscriptionSender)}</code>)` : ""}.</p>
-      <p class="action-step">2. Look near the top of the email for: "Unsubscribe" OR "List-Unsubscribe" link.</p>
-      <p class="action-step">3. Click unsubscribe and confirm.</p>
-      ${subscriptionQueryLine ? `<ul class="action-list">${subscriptionQueryLine}</ul>` : ""}
+      <ol class="action-list">
+        <li class="action-step">Open any recent email from the sender${subscriptionSender ? ` (${subscriptionSender})` : ""}.</li>
+        <li class="action-step">Look near the top of the email for: "Unsubscribe" OR "List-Unsubscribe" link.</li>
+        <li class="action-step">Click unsubscribe and confirm.</li>
+      </ol>
+      ${afterUnsubscribeLine}
     </div>
   `;
 }

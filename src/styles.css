@@ -47,7 +47,7 @@ h1 {
   font-size: 14px;
   font-weight: 600;
   color: #ffffff;
-  background: #0f766e;
+  background: #14B8A6;
   cursor: pointer;
 }
 
@@ -59,13 +59,14 @@ h1 {
 .secondary-btn {
   width: 100%;
   margin-top: 10px;
-  border: 1px solid var(--text-secondary);
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-primary);
-  background: var(--card-bg);
+  background: transparent;
   cursor: pointer;
 }
 
@@ -137,8 +138,9 @@ h1 {
 
 .actions-note {
   margin: 0 0 10px;
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .actions-output {
@@ -149,38 +151,81 @@ h1 {
 
 .actions-empty {
   margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
 }
 
-.action-block + .action-block {
-  margin-top: 12px;
+.action-block {
+  background: #30363D;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.action-block:last-child {
+  margin-bottom: 0;
 }
 
 .action-heading {
-  margin: 0 0 6px;
-  font-size: 12px;
-  font-weight: 700;
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .action-step {
-  margin: 0 0 4px;
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .action-list {
-  margin: 0 0 6px 16px;
+  margin: 0 0 10px 16px;
   padding: 0;
+  list-style-type: decimal;
+}
+
+.action-list li {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
 }
 
 .query-label {
   color: #64748b;
 }
 
-code {
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--bg-main);
-  border: 1px solid var(--text-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 11px;
+.search-box {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin: 4px 0;
+}
+
+.query-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 6px;
+  margin-top: 10px;
+}
+
+.query-label:first-of-type {
+  margin-top: 0;
+}
+
+.after-unsubscribe {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 10px 0 0 0;
 }
 
 @media (min-width: 360px) {
