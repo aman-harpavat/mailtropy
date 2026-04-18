@@ -231,6 +231,15 @@ h1 {
   line-height: 1.6;
 }
 
+.inline-code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 @media (min-width: 360px) {
   .data-scope-banner {
     flex-direction: row;

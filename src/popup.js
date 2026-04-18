@@ -128,9 +128,9 @@ function renderActionsView() {
       ${domainQueryBox}
       <ol class="action-list" start="2">
         <li class="action-step">Press Enter</li>
-        <li class="action-step">Switch sorting to "Most recent"</li>
+        <li class="action-step">Switch sorting to <span class="inline-code">Most recent</span></li>
         <li class="action-step">Click the top checkbox</li>
-        <li class="action-step">To delete more than Gmail's default 50 visible emails at once, click the link that says: "Select all conversations that match this search"</li>
+        <li class="action-step">To delete more than Gmail's default 50 visible emails at once, click the link that says: <span class="inline-code">Select all conversations that match this search</span></li>
         <li class="action-step">Click the Delete icon</li>
         <li class="action-step">Confirm</li>
       </ol>
@@ -139,8 +139,8 @@ function renderActionsView() {
     <h2 class="section-title">Unsubscribe from Subscription Senders</h2>
     <div class="action-block">
       <ol class="action-list">
-        <li class="action-step">Open any recent email from the sender${subscriptionSender ? ` (${subscriptionSender})` : ""}</li>
-        <li class="action-step">Look near the top of the email for: "Unsubscribe" OR "List-Unsubscribe" link</li>
+        <li class="action-step">Open any recent email from the sender</li>
+        <li class="action-step">Look near the top of the email for: <span class="inline-code">Unsubscribe</span> OR <span class="inline-code">List-Unsubscribe</span> link</li>
         <li class="action-step">Click unsubscribe and confirm</li>
       </ol>
       ${afterUnsubscribeLine}
@@ -163,6 +163,9 @@ function renderView() {
 
 function setView(nextView) {
   view = nextView === "actions" ? "actions" : "analysis";
+  if (view === "actions") {
+    window.scrollTo(0, 0);
+  }
   renderView();
 }
 
