@@ -130,7 +130,7 @@ function renderActionsView() {
         <li class="action-step">Press Enter</li>
         <li class="action-step">Switch sorting to <span class="inline-code">Most recent</span></li>
         <li class="action-step">Click the top checkbox</li>
-        <li class="action-step">To delete more than Gmail's default 50 visible emails at once, click the link that says: <span class="inline-code">Select all conversations that match this search</span></li>
+        <li class="action-step">To delete more than Gmail's default 50 visible emails at once, click the link that says: "Select all conversations that match this search"</li>
         <li class="action-step">Click the Delete icon</li>
         <li class="action-step">Confirm</li>
       </ol>
@@ -140,7 +140,7 @@ function renderActionsView() {
     <div class="action-block">
       <ol class="action-list">
         <li class="action-step">Open any recent email from the sender</li>
-        <li class="action-step">Look near the top of the email for: <span class="inline-code">Unsubscribe</span> OR <span class="inline-code">List-Unsubscribe</span> link</li>
+        <li class="action-step">Look near the top of the email for "Unsubscribe" or "List-Unsubscribe" link</li>
         <li class="action-step">Click unsubscribe and confirm</li>
       </ol>
       ${afterUnsubscribeLine}
@@ -253,7 +253,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
   const subscriptionBars = buildBarRows(normalized.topSubscriptionSenders, normalized.totalEmails, "sender");
 
   analyticsContainerEl.innerHTML = `
-    <h2 class="section-title">Sender Analysis</h2>
+    <h2 class="section-title">Sender Insights</h2>
     <div class="analytics-block">
       <p class="metric">Unique Senders: <strong>${normalized.uniqueSenders}</strong></p>
       <div class="concentration-display">
@@ -264,7 +264,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
     </div>
     <div class="section-divider"></div>
 
-    <h2 class="section-title">Domain Analysis</h2>
+    <h2 class="section-title">Domain Insights</h2>
     <div class="analytics-block">
       <p class="metric">Unique Domains: <strong>${normalized.uniqueDomains}</strong></p>
       <div class="concentration-display">
@@ -275,7 +275,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
     </div>
     <div class="section-divider"></div>
 
-    <h2 class="section-title">Subscription Analysis</h2>
+    <h2 class="section-title">Subscription Insights</h2>
     <div class="analytics-block">
       <p class="metric">Subscription Emails: <strong>${normalized.totalSubscriptionEmails}</strong></p>
       <p class="metric">% of Inbox: <strong>${subscriptionPercent}%</strong></p>
