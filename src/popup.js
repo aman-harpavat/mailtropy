@@ -224,32 +224,33 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
     return 'low';
   };
 
-  const senderItems = normalized.topSenders.length > 0
-    ? normalized.topSenders.map((item) => {
-        const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
-        const count = Number(item?.count) || 0;
-        const percent = Number(item?.percent) || 0;
-        return `<li class="sender-item">${sender} — ${count} emails (${percent.toFixed(1)}%)</li>`;
-      }).join('')
-    : '<li class="sender-item">No sender data yet</li>';
+  const buildBarRows = (items, total, labelKey) => {
+    if (!Array.isArray(items) || items.length === 0) {
+      return `<p class="empty-state-text">No data available</p>`;
+    }
 
-  const domainItems = normalized.topDomains.length > 0
-    ? normalized.topDomains.map((item) => {
-        const domain = typeof item?.domain === "string" ? item.domain : "Unknown domain";
-        const count = Number(item?.count) || 0;
-        const percent = Number(item?.percent) || 0;
-        return `<li class="domain-item">${domain} — ${count} emails (${percent.toFixed(1)}%)</li>`;
-      }).join('')
-    : '<li class="domain-item">No domain data yet</li>';
+    return items.slice(0, 5).map((item) => {
+      const label = typeof item?.[labelKey] === "string" ? item[labelKey] : "Unknown";
+      const count = Number(item?.count) || 0;
+      const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+      const safeLabel = escapeHtml(label);
+      return `
+        <div class="bar-row">
+          <div class="bar-header">
+            <span class="bar-label">${safeLabel}</span>
+            <span class="bar-metrics">${count} emails • ${percentage}%</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${percentage}%"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  };
 
-  const subscriptionItems = normalized.topSubscriptionSenders.length > 0
-    ? normalized.topSubscriptionSenders.map((item) => {
-        const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
-        const count = Number(item?.count) || 0;
-        const percentOfInbox = Number(item?.percentOfInbox) || 0;
-        return `<li class="subscription-item">${sender} — ${count} emails (${percentOfInbox.toFixed(1)}% of inbox)</li>`;
-      }).join('')
-    : '<li class="subscription-item">No subscription sender data yet</li>';
+  const senderBars = buildBarRows(normalized.topSenders, normalized.totalEmails, "sender");
+  const domainBars = buildBarRows(normalized.topDomains, normalized.totalEmails, "domain");
+  const subscriptionBars = buildBarRows(normalized.topSubscriptionSenders, normalized.totalEmails, "sender");
 
   analyticsContainerEl.innerHTML = `
     <h2 class="section-title">Sender Analysis</h2>
@@ -259,9 +260,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
         <div class="concentration-pill ${getConcentrationClass(normalized.concentrationLabel)}">${normalized.concentrationLabel}</div>
         <p class="concentration-text">Top senders account for ${concentrationPercent}% of your inbox</p>
       </div>
-      <ul class="sender-list">
-        ${senderItems}
-      </ul>
+      ${senderBars}
     </div>
     <div class="section-divider"></div>
 
@@ -272,9 +271,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
         <div class="concentration-pill ${getConcentrationClass(normalized.domainConcentrationLabel)}">${normalized.domainConcentrationLabel}</div>
         <p class="concentration-text">Top domains account for ${domainConcentrationPercent}% of your inbox</p>
       </div>
-      <ul class="domain-list">
-        ${domainItems}
-      </ul>
+      ${domainBars}
     </div>
     <div class="section-divider"></div>
 
@@ -283,9 +280,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
       <p class="metric">Subscription Emails: <strong>${normalized.totalSubscriptionEmails}</strong></p>
       <p class="metric">% of Inbox: <strong>${subscriptionPercent}%</strong></p>
       <p class="metric">Unique Subscription Senders: <strong>${normalized.totalSubscriptionSenders}</strong></p>
-      <ul class="subscription-list">
-        ${subscriptionItems}
-      </ul>
+      ${subscriptionBars}
     </div>
   `;
 
