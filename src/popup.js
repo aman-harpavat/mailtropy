@@ -2,7 +2,7 @@ import { MESSAGE_TYPES } from "./constants.js";
 
 const analyzeBtn = document.getElementById("analyzeBtn");
 const statusEl = document.getElementById("status");
-const outputEl = document.getElementById("output");
+const analyticsContainerEl = document.getElementById("analyticsContainer");
 const analysisViewEl = document.getElementById("analysisView");
 const actionsViewEl = document.getElementById("actionsView");
 const viewActionsBtn = document.getElementById("viewActionsBtn");
@@ -198,61 +198,86 @@ function renderDataScopeBanner(analyticsResult, lastScanTimestamp) {
 }
 
 function renderDashboard(analyticsResult, lastScanTimestamp) {
-  const normalized = normalizeForDashboard(analyticsResult);
-  const concentrationDisplay = normalized.concentrationPercent.toFixed(1);
-  const domainConcentrationDisplay = normalized.domainConcentrationPercent.toFixed(1);
-  const subscriptionPercentDisplay = normalized.subscriptionPercentOfInbox.toFixed(1);
-  const senderLines =
-    normalized.topSenders.length > 0
-      ? normalized.topSenders.map((item) => {
-          const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
-          const count = Number(item?.count) || 0;
-          const percent = Number(item?.percent) || 0;
-          return `- ${sender} — ${count} emails (${percent.toFixed(1)}%)`;
-        })
-      : ["- No sender data yet"];
-  const domainLines =
-    normalized.topDomains.length > 0
-      ? normalized.topDomains.map((item) => {
-          const domain = typeof item?.domain === "string" ? item.domain : "Unknown domain";
-          const count = Number(item?.count) || 0;
-          const percent = Number(item?.percent) || 0;
-          return `- ${domain} — ${count} emails (${percent.toFixed(1)}%)`;
-        })
-      : ["- No domain data yet"];
-  const subscriptionLines =
-    normalized.topSubscriptionSenders.length > 0
-      ? normalized.topSubscriptionSenders.map((item) => {
-          const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
-          const count = Number(item?.count) || 0;
-          const percentOfInbox = Number(item?.percentOfInbox) || 0;
-          return `- ${sender} — ${count} emails (${percentOfInbox.toFixed(1)}% of inbox)`;
-        })
-      : ["- No subscription sender data yet"];
+  if (!analyticsContainerEl) {
+    return;
+  }
 
-  outputEl.textContent = [
-    "Sender Analysis",
-    `- Unique Senders: ${normalized.uniqueSenders}`,
-    `- Inbox Concentration: ${concentrationDisplay}% — ${normalized.concentrationLabel}`,
-    `Top senders account for ${concentrationDisplay}% of your inbox.`,
-    "",
-    ...senderLines,
-    "",
-    "Domain Analysis",
-    `- Unique Domains: ${normalized.uniqueDomains}`,
-    `- Inbox Concentration: ${domainConcentrationDisplay}% — ${normalized.domainConcentrationLabel}`,
-    `Top domains account for ${domainConcentrationDisplay}% of your inbox.`,
-    "",
-    ...domainLines,
-    "",
-    "Subscription Analysis",
-    `- Subscription Emails: ${normalized.totalSubscriptionEmails}`,
-    `- % of Inbox: ${subscriptionPercentDisplay}%`,
-    `- Unique Subscription Senders: ${normalized.totalSubscriptionSenders}`,
-    `Subscriptions account for ${subscriptionPercentDisplay}% of your inbox.`,
-    "",
-    ...subscriptionLines
-  ].join("\n");
+  const normalized = normalizeForDashboard(analyticsResult);
+  const concentrationPercent = Math.round(normalized.concentrationPercent);
+  const domainConcentrationPercent = Math.round(normalized.domainConcentrationPercent);
+  const subscriptionPercent = Math.round(normalized.subscriptionPercentOfInbox);
+
+  const getConcentrationClass = (label) => {
+    if (label.toLowerCase().includes('low')) return 'low';
+    if (label.toLowerCase().includes('moderate')) return 'moderate';
+    if (label.toLowerCase().includes('high')) return 'high';
+    return 'low';
+  };
+
+  const senderItems = normalized.topSenders.length > 0
+    ? normalized.topSenders.map((item) => {
+        const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
+        const count = Number(item?.count) || 0;
+        const percent = Number(item?.percent) || 0;
+        return `<li class="sender-item">${sender} — ${count} emails (${percent.toFixed(1)}%)</li>`;
+      }).join('')
+    : '<li class="sender-item">No sender data yet</li>';
+
+  const domainItems = normalized.topDomains.length > 0
+    ? normalized.topDomains.map((item) => {
+        const domain = typeof item?.domain === "string" ? item.domain : "Unknown domain";
+        const count = Number(item?.count) || 0;
+        const percent = Number(item?.percent) || 0;
+        return `<li class="domain-item">${domain} — ${count} emails (${percent.toFixed(1)}%)</li>`;
+      }).join('')
+    : '<li class="domain-item">No domain data yet</li>';
+
+  const subscriptionItems = normalized.topSubscriptionSenders.length > 0
+    ? normalized.topSubscriptionSenders.map((item) => {
+        const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
+        const count = Number(item?.count) || 0;
+        const percentOfInbox = Number(item?.percentOfInbox) || 0;
+        return `<li class="subscription-item">${sender} — ${count} emails (${percentOfInbox.toFixed(1)}% of inbox)</li>`;
+      }).join('')
+    : '<li class="subscription-item">No subscription sender data yet</li>';
+
+  analyticsContainerEl.innerHTML = `
+    <div class="analytics-section">
+      <h3 class="section-title">Sender Analysis</h3>
+      <p class="metric">Unique Senders: <strong>${normalized.uniqueSenders}</strong></p>
+      <div class="concentration-display">
+        <div class="concentration-pill ${getConcentrationClass(normalized.concentrationLabel)}">${normalized.concentrationLabel}</div>
+        <p class="concentration-text">Top senders account for ${concentrationPercent}% of your inbox</p>
+      </div>
+      <ul class="sender-list">
+        ${senderItems}
+      </ul>
+    </div>
+
+    <div class="analytics-section">
+      <h3 class="section-title">Domain Analysis</h3>
+      <p class="metric">Unique Domains: <strong>${normalized.uniqueDomains}</strong></p>
+      <div class="concentration-display">
+        <div class="concentration-pill ${getConcentrationClass(normalized.domainConcentrationLabel)}">${normalized.domainConcentrationLabel}</div>
+        <p class="concentration-text">Top domains account for ${domainConcentrationPercent}% of your inbox</p>
+      </div>
+      <ul class="domain-list">
+        ${domainItems}
+      </ul>
+    </div>
+
+    <div class="analytics-section">
+      <h3 class="section-title">Subscription Analysis</h3>
+      <p class="metric">Subscription Emails: <strong>${normalized.totalSubscriptionEmails}</strong></p>
+      <p class="metric">% of Inbox: <strong>${subscriptionPercent}%</strong></p>
+      <p class="metric">Unique Subscription Senders: <strong>${normalized.totalSubscriptionSenders}</strong></p>
+      <ul class="subscription-list">
+        ${subscriptionItems}
+      </ul>
+    </div>
+  `;
+
+  analyticsContainerEl.hidden = false;
 }
 
 export function setLoadingState() {
@@ -276,7 +301,9 @@ export async function loadExistingData() {
     latestAnalyticsResult = null;
     statusEl.classList.remove("error");
     statusEl.textContent = "No scan yet";
-    outputEl.textContent = "Run analysis to see insights";
+    if (analyticsContainerEl) {
+      analyticsContainerEl.hidden = true;
+    }
     if (viewActionsBtn) {
       viewActionsBtn.disabled = true;
     }
@@ -337,8 +364,10 @@ export async function init() {
     await loadExistingData();
   } catch (error) {
     setErrorState(error?.message || "Failed to load existing analysis.");
-    outputEl.textContent = "Run analysis to see insights";
     latestAnalyticsResult = null;
+    if (analyticsContainerEl) {
+      analyticsContainerEl.hidden = true;
+    }
     if (viewActionsBtn) {
       viewActionsBtn.disabled = true;
     }
