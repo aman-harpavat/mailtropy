@@ -36,8 +36,13 @@ function normalizeForDashboard(analyticsResult) {
   const totalEmails = Number(source.totalEmails) || 0;
   const senderAnalysisSource = source?.senderAnalysis && typeof source.senderAnalysis === "object" ? source.senderAnalysis : {};
   const domainAnalysisSource = source?.domainAnalysis && typeof source.domainAnalysis === "object" ? source.domainAnalysis : {};
+  const subscriptionAnalysisSource =
+    source?.subscriptionAnalysis && typeof source.subscriptionAnalysis === "object" ? source.subscriptionAnalysis : {};
   const topSenders = Array.isArray(senderAnalysisSource.topSenders) ? senderAnalysisSource.topSenders : [];
   const topDomains = Array.isArray(domainAnalysisSource.topDomains) ? domainAnalysisSource.topDomains : [];
+  const topSubscriptionSenders = Array.isArray(subscriptionAnalysisSource.topSubscriptionSenders)
+    ? subscriptionAnalysisSource.topSubscriptionSenders
+    : [];
   const uniqueSenders = Number(senderAnalysisSource.uniqueSenders) || 0;
   const concentrationPercent = Number(senderAnalysisSource.concentrationPercent) || 0;
   const concentrationLabel =
@@ -46,6 +51,9 @@ function normalizeForDashboard(analyticsResult) {
   const domainConcentrationPercent = Number(domainAnalysisSource.concentrationPercent) || 0;
   const domainConcentrationLabel =
     typeof domainAnalysisSource.concentrationLabel === "string" ? domainAnalysisSource.concentrationLabel : "Low Concentration";
+  const totalSubscriptionEmails = Number(subscriptionAnalysisSource.totalSubscriptionEmails) || 0;
+  const subscriptionPercentOfInbox = Number(subscriptionAnalysisSource.percentOfInbox) || 0;
+  const totalSubscriptionSenders = Number(subscriptionAnalysisSource.totalSubscriptionSenders) || 0;
 
   return {
     totalEmails,
@@ -56,7 +64,11 @@ function normalizeForDashboard(analyticsResult) {
     uniqueDomains,
     domainConcentrationPercent,
     domainConcentrationLabel,
-    topDomains
+    topDomains,
+    totalSubscriptionEmails,
+    subscriptionPercentOfInbox,
+    totalSubscriptionSenders,
+    topSubscriptionSenders
   };
 }
 
@@ -102,6 +114,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
   const normalized = normalizeForDashboard(analyticsResult);
   const concentrationDisplay = normalized.concentrationPercent.toFixed(1);
   const domainConcentrationDisplay = normalized.domainConcentrationPercent.toFixed(1);
+  const subscriptionPercentDisplay = normalized.subscriptionPercentOfInbox.toFixed(1);
   const senderLines =
     normalized.topSenders.length > 0
       ? normalized.topSenders.map((item) => {
@@ -120,6 +133,15 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
           return `- ${domain} — ${count} emails (${percent.toFixed(1)}%)`;
         })
       : ["- No domain data yet"];
+  const subscriptionLines =
+    normalized.topSubscriptionSenders.length > 0
+      ? normalized.topSubscriptionSenders.map((item) => {
+          const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
+          const count = Number(item?.count) || 0;
+          const percentOfInbox = Number(item?.percentOfInbox) || 0;
+          return `- ${sender} — ${count} emails (${percentOfInbox.toFixed(1)}% of inbox)`;
+        })
+      : ["- No subscription sender data yet"];
 
   outputEl.textContent = [
     "Sender Analysis",
@@ -134,7 +156,15 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
     `- Inbox Concentration: ${domainConcentrationDisplay}% — ${normalized.domainConcentrationLabel}`,
     `Top domains account for ${domainConcentrationDisplay}% of your inbox.`,
     "",
-    ...domainLines
+    ...domainLines,
+    "",
+    "Subscription Analysis",
+    `- Subscription Emails: ${normalized.totalSubscriptionEmails}`,
+    `- % of Inbox: ${subscriptionPercentDisplay}%`,
+    `- Unique Subscription Senders: ${normalized.totalSubscriptionSenders}`,
+    `Subscriptions account for ${subscriptionPercentDisplay}% of your inbox.`,
+    "",
+    ...subscriptionLines
   ].join("\n");
 }
 

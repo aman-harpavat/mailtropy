@@ -52,6 +52,12 @@
  *   concentrationLabel: "Low Concentration" | "Moderate Concentration" | "High Concentration",
  *   topDomains: { domain: string, count: number, percent: number }[]
  * }} domainAnalysis
+ * @property {{
+ *   totalSubscriptionEmails: number,
+ *   percentOfInbox: number,
+ *   totalSubscriptionSenders: number,
+ *   topSubscriptionSenders: { sender: string, count: number, percentOfInbox: number }[]
+ * }} subscriptionAnalysis
  * @property {SenderStat[]} senderStats
  * @property {DomainStat[]} domainStats
  * @property {number} top5ConcentrationPercentage
@@ -167,6 +173,35 @@ export function analyzeEmails(emails) {
     topDomains: domainConcentration.topEntries
   };
 
+  const subscriptionEmails = normalizedEmails.filter((email) => email?.hasUnsubscribeHeader === true);
+  const totalSubscriptionEmails = subscriptionEmails.length;
+  const percentOfInbox = totalEmails > 0 ? (totalSubscriptionEmails / totalEmails) * 100 : 0;
+  const subscriptionSenderFrequencyMap = new Map();
+  for (const email of subscriptionEmails) {
+    const sender = typeof email?.fromEmail === "string" ? email.fromEmail : "";
+    if (!sender) {
+      continue;
+    }
+    subscriptionSenderFrequencyMap.set(sender, (subscriptionSenderFrequencyMap.get(sender) || 0) + 1);
+  }
+  const totalSubscriptionSenders = subscriptionSenderFrequencyMap.size;
+  const topSubscriptionSenders = Array.from(subscriptionSenderFrequencyMap.entries())
+    .map(([sender, count]) => ({ sender, count }))
+    .sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender))
+    .slice(0, 5)
+    .map((sender) => ({
+      sender: sender.sender,
+      count: sender.count,
+      percentOfInbox: totalEmails > 0 ? (sender.count / totalEmails) * 100 : 0
+    }));
+
+  const subscriptionAnalysis = {
+    totalSubscriptionEmails,
+    percentOfInbox,
+    totalSubscriptionSenders,
+    topSubscriptionSenders
+  };
+
   const domainStats = Array.from(domainCounts.entries())
     .map(([domain, count]) => ({
       domain,
@@ -224,6 +259,7 @@ export function analyzeEmails(emails) {
     totalEmails,
     senderAnalysis,
     domainAnalysis,
+    subscriptionAnalysis,
     senderStats,
     domainStats,
     top5ConcentrationPercentage,
