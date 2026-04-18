@@ -11,7 +11,7 @@
   --amber: #FBBF24;
   --red: #F87171;
 
-  --radius-lg: 12px;
+  --radius-lg: 11px;
   --radius-md: 999px; /* for pills */
 }
 
@@ -23,28 +23,28 @@ body {
 }
 
 .app {
-  width: 320px;
-  padding: 16px;
+  width: 321px;
+  padding: 15px;
 }
 
 h1 {
-  margin: 0 0 4px;
-  font-size: 20px;
+  margin: 0 0 5px;
+  font-size: 21px;
   font-weight: 600;
 }
 
 .subtitle {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 11px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
 .primary-btn {
   width: 100%;
   border: none;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
+  border-radius: 9px;
+  padding: 11px 11px;
+  font-size: 13px;
   font-weight: 600;
   color: #ffffff;
   background: #14B8A6;
@@ -58,12 +58,12 @@ h1 {
 
 .secondary-btn {
   width: 100%;
-  margin-top: 10px;
-  margin-bottom: 16px;
+  margin-top: 11px;
+  margin-bottom: 15px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 14px;
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
   background: transparent;
@@ -76,9 +76,9 @@ h1 {
 }
 
 .status {
-  min-height: 18px;
-  margin: 10px 0;
-  font-size: 12px;
+  min-height: 19px;
+  margin: 11px 0;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
@@ -88,31 +88,31 @@ h1 {
 
 .results {
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 9px;
+  padding: 11px;
   background: #ffffff;
 }
 
 .data-scope-banner {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin: 10px 0 12px;
+  gap: 11px;
+  margin: 11px 0 11px;
   border: none;
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 15px;
   background: var(--panel-bg);
 }
 
 .data-scope-title {
   margin: 0;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .data-scope-subtitle {
-  margin: 4px 0 0;
+  margin: 5px 0 0;
   font-size: 11px;
   color: var(--text-secondary);
 }
@@ -130,37 +130,37 @@ h1 {
 }
 
 .actions-title {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 700;
+  margin: 0 0 11px;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .actions-note {
-  margin: 0 0 10px;
-  font-size: 12px;
+  margin: 0 0 11px;
+  font-size: 11px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.6);
 }
 
 .actions-output {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--text-primary);
 }
 
 .actions-empty {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--text-primary);
 }
 
 .action-block {
   background: #30363D;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 20px;
+  border-radius: 11px;
+  padding: 15px;
+  margin-bottom: 21px;
 }
 
 .action-block:last-child {
@@ -168,29 +168,29 @@ h1 {
 }
 
 .action-heading {
-  margin: 0 0 10px;
-  font-size: 16px;
+  margin: 0 0 11px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .action-step {
-  margin: 0 0 12px 0;
-  font-size: 14px;
+  margin: 0 0 11px 0;
+  font-size: 13px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.75);
   line-height: 1.6;
 }
 
 .action-list {
-  margin: 0 0 10px 16px;
+  margin: 0 0 11px 15px;
   padding: 0;
   list-style-type: decimal;
 }
 
 .action-list li {
-  margin: 0 0 12px 0;
-  font-size: 14px;
+  margin: 0 0 11px 0;
+  font-size: 13px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.75);
   line-height: 1.6;
@@ -202,21 +202,21 @@ h1 {
 
 .search-box {
   background: rgba(255, 255, 255, 0.05);
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 11px 11px;
+  border-radius: 9px;
   font-family: monospace;
   font-size: 13px;
   font-weight: 400;
   color: var(--text-primary);
-  margin: 4px 0;
+  margin: 5px 0;
 }
 
 .query-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 6px;
-  margin-top: 10px;
+  margin-bottom: 7px;
+  margin-top: 11px;
 }
 
 .query-label:first-of-type {
@@ -224,17 +224,17 @@ h1 {
 }
 
 .after-unsubscribe {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.75);
-  margin: 10px 0 0 0;
+  margin: 11px 0 0 0;
   line-height: 1.6;
 }
 
 .inline-code {
   background: rgba(255, 255, 255, 0.05);
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 5px 9px;
+  border-radius: 7px;
   font-family: monospace;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
@@ -245,7 +245,7 @@ h1 {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 11px;
   }
 }
 
@@ -259,24 +259,24 @@ pre {
 
 /* Analytics Panel */
 .analytics-container {
-  margin: 10px 0;
+  margin: 11px 0;
 }
 
 .analytics-block {
   background: #30363D;
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 11px;
+  padding: 15px;
 }
 
 .section-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.08);
-  margin: 20px 0;
+  margin: 21px 0;
 }
 
 .metric {
-  margin: 0 0 12px 0;
-  font-size: 14px;
+  margin: 0 0 11px 0;
+  font-size: 13px;
   font-weight: 400;
   color: var(--text-secondary);
 }
@@ -286,16 +286,16 @@ pre {
 }
 
 .concentration-display {
-  margin: 0 0 16px 0;
+  margin: 0 0 15px 0;
 }
 
 .concentration-pill {
   display: inline-block;
-  padding: 4px 10px;
+  padding: 5px 11px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 9px;
 }
 
 .concentration-pill.high {
@@ -314,26 +314,26 @@ pre {
 }
 
 .concentration-text {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.6);
   margin: 0;
 }
 
 .bar-row {
-  margin-bottom: 16px;
+  margin-bottom: 15px;
 }
 
 .bar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 7px;
 }
 
 .bar-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 400;
   color: #E5E7EB;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -342,27 +342,27 @@ pre {
 }
 
 .bar-metrics {
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.6);
 }
 
 .bar-track {
   width: 100%;
-  height: 8px;
+  height: 9px;
   background: rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 7px;
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
   background: #14B8A6;
-  border-radius: 6px;
+  border-radius: 7px;
   transition: width 0.4s ease;
 }
 
 .empty-state-text {
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.6);
   margin: 0;
 }
@@ -375,7 +375,7 @@ pre {
 
 .sender-item, .domain-item, .subscription-item {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--text-primary);
 }
