@@ -1,27 +1,27 @@
 :root {
   /* Backgrounds */
-  --bg-main: #1A1816;        /* deep warm charcoal */
-  --panel-bg: #262320;       /* warm dark panel */
+  --bg-main: #1B1F24;        /* deep charcoal with soft blue undertone */
+  --panel-bg: #242A31;       /* muted blue-gray panel */
 
   /* Text */
-  --text-primary: #F3F0EC;   /* warm off-white */
-  --text-secondary: #B7AFA7; /* warm muted */
+  --text-primary: #E8EDF2;   /* cool pastel off-white */
+  --text-secondary: #AEB8C4; /* desaturated blue-gray */
 
   /* Borders / dividers */
-  --border-soft: rgba(243,240,236,0.08);
-  --border-medium: rgba(243,240,236,0.15);
+  --border-soft: rgba(232,237,242,0.06);
+  --border-medium: rgba(232,237,242,0.12);
 
-  /* Accent (warm amber, not teal) */
-  --accent: #D97706;         /* warm amber */
+  /* Accent (pastel blue) */
+  --accent: #9EC5FE;
 
   /* Status */
-  --success: #C08457;        /* muted warm brown */
-  --warning: #F59E0B;        /* amber */
-  --danger: #DC6B6B;         /* softened warm red */
+  --success: #8ED9B6;        /* pastel green */
+  --warning: #F2D6A2;        /* pastel amber */
+  --danger: #EFA7A7;         /* pastel red */
 
   /* Surface highlight */
-  --surface-soft: rgba(243,240,236,0.05);
-  --surface-muted: rgba(243,240,236,0.08);
+  --surface-soft: rgba(232,237,242,0.05);
+  --surface-muted: rgba(232,237,242,0.08);
 
   --radius-lg: 11px;
   --radius-md: 999px; /* for pills */
