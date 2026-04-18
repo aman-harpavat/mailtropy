@@ -8,24 +8,36 @@
   </head>
   <body>
     <main class="app">
-      <h1>Mailtropy</h1>
-      <p class="subtitle">Privacy-first Gmail metadata insights</p>
+      <section id="analysisView">
+        <h1>Mailtropy</h1>
+        <p class="subtitle">Privacy-first Gmail metadata insights</p>
 
-      <button id="analyzeBtn" class="primary-btn" type="button">Analyze Inbox</button>
-      <p id="status" class="status" aria-live="polite"></p>
+        <button id="analyzeBtn" class="primary-btn" type="button">Analyze Inbox</button>
+        <p id="status" class="status" aria-live="polite"></p>
 
-      <section id="dataScopeBanner" class="data-scope-banner" aria-label="Data scope summary" hidden>
-        <div class="data-scope-left">
-          <p id="dataScopeSummary" class="data-scope-title"></p>
-          <p class="data-scope-subtitle">Message-level analysis. Conversation view does not affect results.</p>
-        </div>
-        <div class="data-scope-right">
-          <p id="dataScopeLastScan" class="data-scope-last-scan"></p>
-        </div>
+        <section id="dataScopeBanner" class="data-scope-banner" aria-label="Data scope summary" hidden>
+          <div class="data-scope-left">
+            <p id="dataScopeSummary" class="data-scope-title"></p>
+            <p class="data-scope-subtitle">Message-level analysis. Conversation view does not affect results.</p>
+          </div>
+          <div class="data-scope-right">
+            <p id="dataScopeLastScan" class="data-scope-last-scan"></p>
+          </div>
+        </section>
+
+        <section class="results" aria-label="Analytics output">
+          <pre id="output">No analysis yet.</pre>
+        </section>
+
+        <button id="viewActionsBtn" class="secondary-btn" type="button">View Recommended Actions</button>
       </section>
 
-      <section class="results" aria-label="Analytics output">
-        <pre id="output">No analysis yet.</pre>
+      <section id="actionsView" hidden>
+        <button id="backToAnalysisBtn" class="secondary-btn" type="button">← Back to Analysis</button>
+        <section class="results" aria-label="Recommended actions">
+          <p class="actions-title">Recommended Actions</p>
+          <div id="actionsOutput" class="actions-output"></div>
+        </section>
       </section>
     </main>
 

@@ -42,6 +42,24 @@ h1 {
   cursor: not-allowed;
 }
 
+.secondary-btn {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.secondary-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .status {
   min-height: 18px;
   margin: 10px 0;
@@ -94,6 +112,55 @@ h1 {
   margin: 0;
   font-size: 11px;
   color: #334155;
+}
+
+.actions-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.actions-output {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #0f172a;
+}
+
+.actions-empty {
+  margin: 0;
+}
+
+.action-block + .action-block {
+  margin-top: 12px;
+}
+
+.action-heading {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.action-step {
+  margin: 0 0 4px;
+}
+
+.action-list {
+  margin: 0 0 6px 16px;
+  padding: 0;
+}
+
+.query-label {
+  color: #64748b;
+}
+
+code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
 }
 
 @media (min-width: 360px) {

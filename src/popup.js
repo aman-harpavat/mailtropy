@@ -3,9 +3,16 @@ import { MESSAGE_TYPES } from "./constants.js";
 const analyzeBtn = document.getElementById("analyzeBtn");
 const statusEl = document.getElementById("status");
 const outputEl = document.getElementById("output");
+const analysisViewEl = document.getElementById("analysisView");
+const actionsViewEl = document.getElementById("actionsView");
+const viewActionsBtn = document.getElementById("viewActionsBtn");
+const backToAnalysisBtn = document.getElementById("backToAnalysisBtn");
+const actionsOutputEl = document.getElementById("actionsOutput");
 const dataScopeBannerEl = document.getElementById("dataScopeBanner");
 const dataScopeSummaryEl = document.getElementById("dataScopeSummary");
 const dataScopeLastScanEl = document.getElementById("dataScopeLastScan");
+let view = "analysis";
+let latestAnalyticsResult = null;
 
 function sendRuntimeMessage(message) {
   return new Promise((resolve, reject) => {
@@ -70,6 +77,86 @@ function normalizeForDashboard(analyticsResult) {
     totalSubscriptionSenders,
     topSubscriptionSenders
   };
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderActionsView() {
+  if (!actionsOutputEl) {
+    return;
+  }
+
+  if (!latestAnalyticsResult) {
+    actionsOutputEl.innerHTML = "<p class=\"actions-empty\">Run analysis first to see recommended actions.</p>";
+    return;
+  }
+
+  const normalized = normalizeForDashboard(latestAnalyticsResult);
+  const topSender = normalized.topSenders[0];
+  const topDomain = normalized.topDomains[0];
+  const topSubscriptionSender = normalized.topSubscriptionSenders[0];
+  const senderQuery = typeof topSender?.sender === "string" && topSender.sender ? `from:${topSender.sender}` : "";
+  const domainQuery = typeof topDomain?.domain === "string" && topDomain.domain ? `from:${topDomain.domain}` : "";
+  const subscriptionSender = typeof topSubscriptionSender?.sender === "string" ? topSubscriptionSender.sender : "";
+  const subscriptionSearchQuery = subscriptionSender ? `from:${subscriptionSender}` : "";
+
+  const senderQueryLine = senderQuery
+    ? `<li>For deleting emails from a specific Sender - <code>${escapeHtml(senderQuery)}</code></li>`
+    : "";
+  const domainQueryLine = domainQuery
+    ? `<li>For deleting emails from a specific Domain - <code>${escapeHtml(domainQuery)}</code></li>`
+    : "";
+  const queryListHtml =
+    senderQueryLine || domainQueryLine ? `<ul class="action-list">${senderQueryLine}${domainQueryLine}</ul>` : "";
+  const subscriptionQueryLine = subscriptionSearchQuery
+    ? `<li>After unsubscribing, search for the sender and repeat bulk delete steps.</li>`
+    : "";
+
+  actionsOutputEl.innerHTML = `
+    <div class="action-block">
+      <p class="action-heading">Bulk Delete Emails from Top Sender or Domain</p>
+      <p class="action-step">1. In Gmail search bar, type:</p>
+      ${queryListHtml}
+      <p class="action-step">2. Press Enter.</p>
+      <p class="action-step">3. Switch sorting to "Most recent".</p>
+      <p class="action-step">4. Click the top checkbox.</p>
+      <p class="action-step">5. (To delete more than Gmail's default 50 visible emails at once) Click the link that says: "Select all conversations that match this search"</p>
+      <p class="action-step">6. Click the Delete icon.</p>
+      <p class="action-step">7. Confirm.</p>
+    </div>
+    <div class="action-block">
+      <p class="action-heading">Unsubscribe from Subscription Senders</p>
+      <p class="action-step">1. Open any recent email from the sender${subscriptionSender ? ` (<code>${escapeHtml(subscriptionSender)}</code>)` : ""}.</p>
+      <p class="action-step">2. Look near the top of the email for: "Unsubscribe" OR "List-Unsubscribe" link.</p>
+      <p class="action-step">3. Click unsubscribe and confirm.</p>
+      ${subscriptionQueryLine ? `<ul class="action-list">${subscriptionQueryLine}</ul>` : ""}
+    </div>
+  `;
+}
+
+function renderView() {
+  if (analysisViewEl) {
+    analysisViewEl.hidden = view !== "analysis";
+  }
+  if (actionsViewEl) {
+    actionsViewEl.hidden = view !== "actions";
+  }
+
+  if (view === "actions") {
+    renderActionsView();
+  }
+}
+
+function setView(nextView) {
+  view = nextView === "actions" ? "actions" : "analysis";
+  renderView();
 }
 
 function formatBannerTimestamp(lastScanTimestamp) {
@@ -186,17 +273,25 @@ export async function loadExistingData() {
   const lastScanTimestamp = stored?.lastScanTimestamp ?? null;
 
   if (!analyticsResult) {
+    latestAnalyticsResult = null;
     statusEl.classList.remove("error");
     statusEl.textContent = "No scan yet";
     outputEl.textContent = "Run analysis to see insights";
+    if (viewActionsBtn) {
+      viewActionsBtn.disabled = true;
+    }
     hideDataScopeBanner();
     return;
   }
 
+  latestAnalyticsResult = analyticsResult;
   statusEl.classList.remove("error");
   statusEl.textContent = "Loaded latest analysis";
   renderDataScopeBanner(analyticsResult, lastScanTimestamp);
   renderDashboard(analyticsResult, lastScanTimestamp);
+  if (viewActionsBtn) {
+    viewActionsBtn.disabled = false;
+  }
 }
 
 export async function runAnalysis() {
@@ -215,11 +310,15 @@ export async function runAnalysis() {
       throw new Error("No analytics result returned.");
     }
 
+    latestAnalyticsResult = analyticsResult;
     analyzeBtn.disabled = false;
     statusEl.classList.remove("error");
     statusEl.textContent = "Analysis complete";
     renderDataScopeBanner(analyticsResult, lastScanTimestamp);
     renderDashboard(analyticsResult, lastScanTimestamp);
+    if (viewActionsBtn) {
+      viewActionsBtn.disabled = false;
+    }
   } catch (error) {
     setErrorState(error?.message || "Analysis failed.");
   }
@@ -227,14 +326,26 @@ export async function runAnalysis() {
 
 export async function init() {
   analyzeBtn.addEventListener("click", runAnalysis);
+  if (viewActionsBtn) {
+    viewActionsBtn.addEventListener("click", () => setView("actions"));
+  }
+  if (backToAnalysisBtn) {
+    backToAnalysisBtn.addEventListener("click", () => setView("analysis"));
+  }
 
   try {
     await loadExistingData();
   } catch (error) {
     setErrorState(error?.message || "Failed to load existing analysis.");
     outputEl.textContent = "Run analysis to see insights";
+    latestAnalyticsResult = null;
+    if (viewActionsBtn) {
+      viewActionsBtn.disabled = true;
+    }
     hideDataScopeBanner();
   }
+
+  renderView();
 }
 
 init();
