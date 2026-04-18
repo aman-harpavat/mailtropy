@@ -34,47 +34,14 @@ function getStorageValues(keys) {
 function normalizeForDashboard(analyticsResult) {
   const source = analyticsResult && typeof analyticsResult === "object" ? analyticsResult : {};
   const totalEmails = Number(source.totalEmails) || 0;
-  const uniqueSenders = Number(source.uniqueSenders) || (Array.isArray(source.senderStats) ? source.senderStats.length : 0);
-  const unsubscribeEligible =
-    Number(source.unsubscribeEligible) || (Array.isArray(source.subscriptions) ? source.subscriptions.length : 0);
-  const topSendersRaw = Array.isArray(source.topSenders)
-    ? source.topSenders
-    : Array.isArray(source.domainStats)
-      ? source.domainStats.map((item) => ({ domain: item?.domain, count: item?.count }))
-      : [];
+  const senderAnalysisSource = source?.senderAnalysis && typeof source.senderAnalysis === "object" ? source.senderAnalysis : {};
+  const topSenders = Array.isArray(senderAnalysisSource.topSenders) ? senderAnalysisSource.topSenders : [];
+  const uniqueSenders = Number(senderAnalysisSource.uniqueSenders) || 0;
+  const concentrationPercent = Number(senderAnalysisSource.concentrationPercent) || 0;
+  const concentrationLabel =
+    typeof senderAnalysisSource.concentrationLabel === "string" ? senderAnalysisSource.concentrationLabel : "Low Concentration";
 
-  const topSenders = topSendersRaw
-    .map((item) => ({
-      domain: typeof item?.domain === "string" ? item.domain : "",
-      count: Number(item?.count) || 0
-    }))
-    .filter((item) => item.domain)
-    .sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain))
-    .slice(0, 5);
-
-  return { totalEmails, uniqueSenders, unsubscribeEligible, topSenders };
-}
-
-export function renderOverview(analyticsResult) {
-  const normalized = normalizeForDashboard(analyticsResult);
-  return [
-    "Overview",
-    `- Total Emails: ${normalized.totalEmails}`,
-    `- Unique Senders: ${normalized.uniqueSenders}`,
-    `- Unsubscribe Eligible Senders: ${normalized.unsubscribeEligible}`
-  ].join("\n");
-}
-
-export function renderTopSenders(analyticsResult) {
-  const normalized = normalizeForDashboard(analyticsResult);
-  if (normalized.topSenders.length === 0) {
-    return "Top Senders\n- No sender data yet";
-  }
-
-  return [
-    "Top Senders",
-    ...normalized.topSenders.map((item) => `- ${item.domain} — ${item.count} emails`)
-  ].join("\n");
+  return { totalEmails, uniqueSenders, concentrationPercent, concentrationLabel, topSenders };
 }
 
 function formatBannerTimestamp(lastScanTimestamp) {
@@ -116,10 +83,25 @@ function renderDataScopeBanner(analyticsResult, lastScanTimestamp) {
 }
 
 function renderDashboard(analyticsResult, lastScanTimestamp) {
+  const normalized = normalizeForDashboard(analyticsResult);
+  const concentrationDisplay = normalized.concentrationPercent.toFixed(1);
+  const senderLines =
+    normalized.topSenders.length > 0
+      ? normalized.topSenders.map((item) => {
+          const sender = typeof item?.sender === "string" ? item.sender : "Unknown sender";
+          const count = Number(item?.count) || 0;
+          const percent = Number(item?.percent) || 0;
+          return `- ${sender} — ${count} emails (${percent.toFixed(1)}%)`;
+        })
+      : ["- No sender data yet"];
+
   outputEl.textContent = [
-    renderOverview(analyticsResult),
+    "Sender Analysis",
+    `- Unique Senders: ${normalized.uniqueSenders}`,
+    `- Inbox Concentration: ${concentrationDisplay}% — ${normalized.concentrationLabel}`,
+    `Top senders account for ${concentrationDisplay}% of your inbox.`,
     "",
-    renderTopSenders(analyticsResult)
+    ...senderLines
   ].join("\n");
 }
 
