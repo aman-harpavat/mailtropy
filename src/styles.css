@@ -1,7 +1,7 @@
 :root {
   /* Backgrounds */
   --bg-main: #1B1F24;        /* deep charcoal with soft blue undertone */
-  --panel-bg: #242A31;       /* muted blue-gray panel */
+  --panel-bg: #2E353E;       /* muted blue-gray panel */
 
   /* Text */
   --text-primary: #E8EDF2;   /* cool pastel off-white */
@@ -58,7 +58,7 @@ h1 {
   padding: 11px 11px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--bg-main);
   background: var(--accent);
   cursor: pointer;
 }
@@ -305,25 +305,23 @@ pre {
 .concentration-pill {
   display: inline-block;
   padding: 5px 11px;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  color: var(--bg-main);
 }
 
 .concentration-pill.high {
-  background: rgba(220, 107, 107, 0.12);
-  color: #DC6B6B;
+  background: var(--danger);
 }
 
 .concentration-pill.moderate {
-  background: rgba(245, 158, 11, 0.12);
-  color: #F59E0B;
+  background: var(--warning);
 }
 
 .concentration-pill.low {
-  background: rgba(192, 132, 87, 0.12);
-  color: #C08457;
+  background: var(--success);
 }
 
 .concentration-text {
