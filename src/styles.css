@@ -29,7 +29,8 @@ body {
 
 h1 {
   margin: 0 0 4px;
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .subtitle {
@@ -201,28 +202,25 @@ pre {
 
 /* Analytics Panel */
 .analytics-container {
-  background: var(--panel-bg);
-  border-radius: var(--radius-lg);
-  padding: 18px;
   margin: 10px 0;
 }
 
-.analytics-section + .analytics-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  margin-top: 18px;
-  padding-top: 18px;
+.analytics-block {
+  background: #30363D;
+  border-radius: 12px;
+  padding: 16px;
 }
 
-.section-title {
-  font-weight: 600;
-  font-size: 16px;
-  margin: 0 0 10px 0;
-  color: var(--text-primary);
+.section-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 20px 0;
 }
 
 .metric {
   margin: 0 0 12px 0;
   font-size: 14px;
+  font-weight: 400;
   color: var(--text-secondary);
 }
 
@@ -237,7 +235,7 @@ pre {
 .concentration-pill {
   display: inline-block;
   padding: 4px 10px;
-  border-radius: var(--radius-md);
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 8px;
@@ -260,6 +258,7 @@ pre {
 
 .concentration-text {
   font-size: 12px;
+  font-weight: 400;
   color: rgba(255, 255, 255, 0.6);
   margin: 0;
 }
@@ -272,6 +271,7 @@ pre {
 
 .sender-item, .domain-item, .subscription-item {
   margin: 0 0 8px 0;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 400;
   color: var(--text-primary);
 }

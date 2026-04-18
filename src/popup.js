@@ -242,8 +242,8 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
     : '<li class="subscription-item">No subscription sender data yet</li>';
 
   analyticsContainerEl.innerHTML = `
-    <div class="analytics-section">
-      <h3 class="section-title">Sender Analysis</h3>
+    <h2 class="section-title">Sender Analysis</h2>
+    <div class="analytics-block">
       <p class="metric">Unique Senders: <strong>${normalized.uniqueSenders}</strong></p>
       <div class="concentration-display">
         <div class="concentration-pill ${getConcentrationClass(normalized.concentrationLabel)}">${normalized.concentrationLabel}</div>
@@ -253,9 +253,10 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
         ${senderItems}
       </ul>
     </div>
+    <div class="section-divider"></div>
 
-    <div class="analytics-section">
-      <h3 class="section-title">Domain Analysis</h3>
+    <h2 class="section-title">Domain Analysis</h2>
+    <div class="analytics-block">
       <p class="metric">Unique Domains: <strong>${normalized.uniqueDomains}</strong></p>
       <div class="concentration-display">
         <div class="concentration-pill ${getConcentrationClass(normalized.domainConcentrationLabel)}">${normalized.domainConcentrationLabel}</div>
@@ -265,9 +266,10 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
         ${domainItems}
       </ul>
     </div>
+    <div class="section-divider"></div>
 
-    <div class="analytics-section">
-      <h3 class="section-title">Subscription Analysis</h3>
+    <h2 class="section-title">Subscription Analysis</h2>
+    <div class="analytics-block">
       <p class="metric">Subscription Emails: <strong>${normalized.totalSubscriptionEmails}</strong></p>
       <p class="metric">% of Inbox: <strong>${subscriptionPercent}%</strong></p>
       <p class="metric">Unique Subscription Senders: <strong>${normalized.totalSubscriptionSenders}</strong></p>
