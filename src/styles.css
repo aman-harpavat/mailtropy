@@ -197,7 +197,7 @@ h1 {
 }
 
 .query-label {
-  color: #64748b;
+  color: #8b7a64;
 }
 
 .search-box {
@@ -286,8 +286,9 @@ pre {
 }
 
 .concentration-display {
-  margin: 0 0 15px 0;
-}
+  margin: 0 0 15px 0;  display: flex;
+  align-items: center;
+  gap: 9px;}
 
 .concentration-pill {
   display: inline-block;
@@ -295,7 +296,7 @@ pre {
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  margin-bottom: 9px;
+  white-space: nowrap;
 }
 
 .concentration-pill.high {
