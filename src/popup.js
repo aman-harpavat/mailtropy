@@ -35,13 +35,29 @@ function normalizeForDashboard(analyticsResult) {
   const source = analyticsResult && typeof analyticsResult === "object" ? analyticsResult : {};
   const totalEmails = Number(source.totalEmails) || 0;
   const senderAnalysisSource = source?.senderAnalysis && typeof source.senderAnalysis === "object" ? source.senderAnalysis : {};
+  const domainAnalysisSource = source?.domainAnalysis && typeof source.domainAnalysis === "object" ? source.domainAnalysis : {};
   const topSenders = Array.isArray(senderAnalysisSource.topSenders) ? senderAnalysisSource.topSenders : [];
+  const topDomains = Array.isArray(domainAnalysisSource.topDomains) ? domainAnalysisSource.topDomains : [];
   const uniqueSenders = Number(senderAnalysisSource.uniqueSenders) || 0;
   const concentrationPercent = Number(senderAnalysisSource.concentrationPercent) || 0;
   const concentrationLabel =
     typeof senderAnalysisSource.concentrationLabel === "string" ? senderAnalysisSource.concentrationLabel : "Low Concentration";
+  const uniqueDomains = Number(domainAnalysisSource.uniqueDomains) || 0;
+  const domainConcentrationPercent = Number(domainAnalysisSource.concentrationPercent) || 0;
+  const domainConcentrationLabel =
+    typeof domainAnalysisSource.concentrationLabel === "string" ? domainAnalysisSource.concentrationLabel : "Low Concentration";
 
-  return { totalEmails, uniqueSenders, concentrationPercent, concentrationLabel, topSenders };
+  return {
+    totalEmails,
+    uniqueSenders,
+    concentrationPercent,
+    concentrationLabel,
+    topSenders,
+    uniqueDomains,
+    domainConcentrationPercent,
+    domainConcentrationLabel,
+    topDomains
+  };
 }
 
 function formatBannerTimestamp(lastScanTimestamp) {
@@ -85,6 +101,7 @@ function renderDataScopeBanner(analyticsResult, lastScanTimestamp) {
 function renderDashboard(analyticsResult, lastScanTimestamp) {
   const normalized = normalizeForDashboard(analyticsResult);
   const concentrationDisplay = normalized.concentrationPercent.toFixed(1);
+  const domainConcentrationDisplay = normalized.domainConcentrationPercent.toFixed(1);
   const senderLines =
     normalized.topSenders.length > 0
       ? normalized.topSenders.map((item) => {
@@ -94,6 +111,15 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
           return `- ${sender} — ${count} emails (${percent.toFixed(1)}%)`;
         })
       : ["- No sender data yet"];
+  const domainLines =
+    normalized.topDomains.length > 0
+      ? normalized.topDomains.map((item) => {
+          const domain = typeof item?.domain === "string" ? item.domain : "Unknown domain";
+          const count = Number(item?.count) || 0;
+          const percent = Number(item?.percent) || 0;
+          return `- ${domain} — ${count} emails (${percent.toFixed(1)}%)`;
+        })
+      : ["- No domain data yet"];
 
   outputEl.textContent = [
     "Sender Analysis",
@@ -101,7 +127,14 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
     `- Inbox Concentration: ${concentrationDisplay}% — ${normalized.concentrationLabel}`,
     `Top senders account for ${concentrationDisplay}% of your inbox.`,
     "",
-    ...senderLines
+    ...senderLines,
+    "",
+    "Domain Analysis",
+    `- Unique Domains: ${normalized.uniqueDomains}`,
+    `- Inbox Concentration: ${domainConcentrationDisplay}% — ${normalized.domainConcentrationLabel}`,
+    `Top domains account for ${domainConcentrationDisplay}% of your inbox.`,
+    "",
+    ...domainLines
   ].join("\n");
 }
 

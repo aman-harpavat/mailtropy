@@ -46,6 +46,12 @@
  *   concentrationLabel: "Low Concentration" | "Moderate Concentration" | "High Concentration",
  *   topSenders: { sender: string, count: number, percent: number }[]
  * }} senderAnalysis
+ * @property {{
+ *   uniqueDomains: number,
+ *   concentrationPercent: number,
+ *   concentrationLabel: "Low Concentration" | "Moderate Concentration" | "High Concentration",
+ *   topDomains: { domain: string, count: number, percent: number }[]
+ * }} domainAnalysis
  * @property {SenderStat[]} senderStats
  * @property {DomainStat[]} domainStats
  * @property {number} top5ConcentrationPercentage
@@ -103,39 +109,62 @@ export function analyzeEmails(emails) {
     .map(([email, count]) => ({ email, count }))
     .sort((a, b) => b.count - a.count || a.email.localeCompare(b.email));
 
+  function buildConcentrationAnalysis(frequencyMap, topKey) {
+    const topEntries = Array.from(frequencyMap.entries())
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
+      .slice(0, 5);
+    const topEntryCount = topEntries.reduce((sum, entry) => sum + entry.count, 0);
+    const concentrationPercent = totalEmails > 0 ? (topEntryCount / totalEmails) * 100 : 0;
+
+    let concentrationLabel = "High Concentration";
+    if (concentrationPercent < 30) {
+      concentrationLabel = "Low Concentration";
+    } else if (concentrationPercent < 60) {
+      concentrationLabel = "Moderate Concentration";
+    }
+
+    return {
+      uniqueCount: frequencyMap.size,
+      concentrationPercent,
+      concentrationLabel,
+      topEntries: topEntries.map((entry) => ({
+        [topKey]: entry.key,
+        count: entry.count,
+        percent: totalEmails > 0 ? (entry.count / totalEmails) * 100 : 0
+      }))
+    };
+  }
+
   const senderFrequencyMap = new Map();
+  const domainFrequencyMap = new Map();
   for (const email of normalizedEmails) {
     const sender = typeof email?.fromEmail === "string" ? email.fromEmail : "";
-    if (!sender) {
-      continue;
+    const domain = typeof email?.fromDomain === "string" ? email.fromDomain : "";
+
+    if (sender) {
+      senderFrequencyMap.set(sender, (senderFrequencyMap.get(sender) || 0) + 1);
     }
-    senderFrequencyMap.set(sender, (senderFrequencyMap.get(sender) || 0) + 1);
+    if (domain) {
+      domainFrequencyMap.set(domain, (domainFrequencyMap.get(domain) || 0) + 1);
+    }
   }
 
-  const uniqueSenders = senderFrequencyMap.size;
-  const topSenderEntries = Array.from(senderFrequencyMap.entries())
-    .map(([sender, count]) => ({ sender, count }))
-    .sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender))
-    .slice(0, 5);
-  const topSenderMessageCount = topSenderEntries.reduce((sum, sender) => sum + sender.count, 0);
-  const concentrationPercent = totalEmails > 0 ? (topSenderMessageCount / totalEmails) * 100 : 0;
-
-  let concentrationLabel = "High Concentration";
-  if (concentrationPercent < 30) {
-    concentrationLabel = "Low Concentration";
-  } else if (concentrationPercent < 60) {
-    concentrationLabel = "Moderate Concentration";
-  }
+  const senderConcentration = buildConcentrationAnalysis(senderFrequencyMap, "sender");
+  const domainConcentration = buildConcentrationAnalysis(domainFrequencyMap, "domain");
 
   const senderAnalysis = {
-    uniqueSenders,
-    concentrationPercent,
-    concentrationLabel,
-    topSenders: topSenderEntries.map((sender) => ({
-      sender: sender.sender,
-      count: sender.count,
-      percent: totalEmails > 0 ? (sender.count / totalEmails) * 100 : 0
-    }))
+    uniqueSenders: senderConcentration.uniqueCount,
+    concentrationPercent: senderConcentration.concentrationPercent,
+    concentrationLabel: senderConcentration.concentrationLabel,
+    topSenders: senderConcentration.topEntries
+  };
+
+  const domainAnalysis = {
+    uniqueDomains: domainConcentration.uniqueCount,
+    concentrationPercent: domainConcentration.concentrationPercent,
+    concentrationLabel: domainConcentration.concentrationLabel,
+    topDomains: domainConcentration.topEntries
   };
 
   const domainStats = Array.from(domainCounts.entries())
@@ -194,6 +223,7 @@ export function analyzeEmails(emails) {
   return {
     totalEmails,
     senderAnalysis,
+    domainAnalysis,
     senderStats,
     domainStats,
     top5ConcentrationPercentage,
