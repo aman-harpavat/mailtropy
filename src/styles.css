@@ -39,6 +39,49 @@ body {
   padding: 15px;
 }
 
+.popup-header {
+  height: auto;
+  padding: 0px 0px 15px 0px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border-bottom: 1px solid var(--surface-muted);
+  width: 100%;
+}
+
+.logo-mark {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.brand-title {
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin: 0;
+  padding: 0;
+  letter-spacing: -0.3px;
+}
+
+.brand-subtitle {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.1;
+  margin: 0;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
 h1 {
   margin: 0 0 5px;
   font-size: 21px;
