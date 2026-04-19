@@ -1,5 +1,3 @@
-import { MESSAGE_TYPES } from "./constants.js";
-
 const analyzeBtn = document.getElementById("analyzeBtn");
 const statusEl = document.getElementById("status");
 const analyticsContainerEl = document.getElementById("analyticsContainer");
@@ -13,6 +11,10 @@ const dataScopeSummaryEl = document.getElementById("dataScopeSummary");
 const dataScopeLastScanEl = document.getElementById("dataScopeLastScan");
 let view = "analysis";
 let latestAnalyticsResult = null;
+let jobStatePollTimer = null;
+const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
+const ANALYSIS_JOB_STATE_KEY = "analysisJobState";
+const JOB_POLL_INTERVAL_MS = 1500;
 
 function sendRuntimeMessage(message) {
   return new Promise((resolve, reject) => {
@@ -287,10 +289,73 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
   analyticsContainerEl.hidden = false;
 }
 
+function stopJobStatePolling() {
+  if (jobStatePollTimer != null) {
+    clearInterval(jobStatePollTimer);
+    jobStatePollTimer = null;
+  }
+}
+
+function startJobStatePolling() {
+  stopJobStatePolling();
+  jobStatePollTimer = setInterval(() => {
+    pollAnalysisJobState().catch((error) => {
+      console.error("Polling failed:", error?.message || error);
+    });
+  }, JOB_POLL_INTERVAL_MS);
+}
+
+async function pollAnalysisJobState() {
+  const stored = await getStorageValues([ANALYSIS_JOB_STATE_KEY, "lastScanTimestamp"]);
+  const jobState = stored?.[ANALYSIS_JOB_STATE_KEY] || {};
+  const status = typeof jobState?.status === "string" ? jobState.status : "idle";
+
+  if (status === "running") {
+    statusEl.classList.remove("error");
+    statusEl.textContent = "Running...";
+    console.log("Running...");
+    return;
+  }
+
+  if (status === "complete") {
+    stopJobStatePolling();
+    const analyticsResult = jobState?.result ?? null;
+    const lastScanTimestamp = Number.isFinite(stored?.lastScanTimestamp)
+      ? stored.lastScanTimestamp
+      : Number(jobState?.finishedAt) || Date.now();
+
+    if (!analyticsResult) {
+      throw new Error("Analysis completed but no result was stored.");
+    }
+
+    latestAnalyticsResult = analyticsResult;
+    analyzeBtn.disabled = false;
+    statusEl.classList.remove("error");
+    statusEl.textContent = "Analysis complete";
+    renderDataScopeBanner(analyticsResult, lastScanTimestamp);
+    renderDashboard(analyticsResult, lastScanTimestamp);
+    if (viewActionsBtn) {
+      viewActionsBtn.disabled = false;
+    }
+    console.log("Completed");
+    return;
+  }
+
+  if (status === "error") {
+    stopJobStatePolling();
+    const message = typeof jobState?.error === "string" ? jobState.error : "Analysis failed.";
+    setErrorState(message);
+    console.log(`Error: ${message}`);
+    return;
+  }
+
+  stopJobStatePolling();
+}
+
 export function setLoadingState() {
   analyzeBtn.disabled = true;
   statusEl.classList.remove("error");
-  statusEl.textContent = "Analyzing inbox...";
+  statusEl.textContent = "Running...";
 }
 
 export function setErrorState(message) {
@@ -300,11 +365,28 @@ export function setErrorState(message) {
 }
 
 export async function loadExistingData() {
-  const stored = await getStorageValues(["analyticsResult", "lastScanTimestamp"]);
+  const stored = await getStorageValues(["analyticsResult", "lastScanTimestamp", ANALYSIS_JOB_STATE_KEY]);
   const analyticsResult = stored?.analyticsResult ?? null;
   const lastScanTimestamp = stored?.lastScanTimestamp ?? null;
+  const jobState = stored?.[ANALYSIS_JOB_STATE_KEY] || {};
+  const jobStatus = typeof jobState?.status === "string" ? jobState.status : "idle";
 
-  if (!analyticsResult) {
+  if (jobStatus === "running") {
+    latestAnalyticsResult = null;
+    setLoadingState();
+    if (analyticsContainerEl) {
+      analyticsContainerEl.hidden = true;
+    }
+    if (viewActionsBtn) {
+      viewActionsBtn.disabled = true;
+    }
+    hideDataScopeBanner();
+    startJobStatePolling();
+    console.log("Running...");
+    return;
+  }
+
+  if (!analyticsResult && jobStatus !== "complete") {
     latestAnalyticsResult = null;
     statusEl.classList.remove("error");
     statusEl.textContent = "No scan yet";
@@ -330,31 +412,25 @@ export async function loadExistingData() {
 
 export async function runAnalysis() {
   setLoadingState();
+  if (analyticsContainerEl) {
+    analyticsContainerEl.hidden = true;
+  }
+  if (viewActionsBtn) {
+    viewActionsBtn.disabled = true;
+  }
+  hideDataScopeBanner();
+  console.log("Running...");
 
   try {
-    const response = await sendRuntimeMessage({ type: MESSAGE_TYPES.RUN_ANALYTICS });
-    if (!response?.ok) {
-      throw new Error(response?.error || "Analysis failed.");
+    const response = await sendRuntimeMessage({ type: START_ANALYSIS_MESSAGE });
+    if (!response?.started) {
+      throw new Error("Failed to start analysis job.");
     }
-
-    const analyticsResult = response?.analyticsResult ?? null;
-    const lastScanTimestamp = response?.lastScanTimestamp ?? Date.now();
-
-    if (!analyticsResult) {
-      throw new Error("No analytics result returned.");
-    }
-
-    latestAnalyticsResult = analyticsResult;
-    analyzeBtn.disabled = false;
-    statusEl.classList.remove("error");
-    statusEl.textContent = "Analysis complete";
-    renderDataScopeBanner(analyticsResult, lastScanTimestamp);
-    renderDashboard(analyticsResult, lastScanTimestamp);
-    if (viewActionsBtn) {
-      viewActionsBtn.disabled = false;
-    }
+    startJobStatePolling();
   } catch (error) {
+    stopJobStatePolling();
     setErrorState(error?.message || "Analysis failed.");
+    console.log(`Error: ${error?.message || "Analysis failed."}`);
   }
 }
 
