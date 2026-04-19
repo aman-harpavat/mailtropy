@@ -7,9 +7,6 @@ const actionsViewEl = document.getElementById("actionsView");
 const viewActionsBtn = document.getElementById("viewActionsBtn");
 const backToAnalysisBtn = document.getElementById("backToAnalysisBtn");
 const actionsOutputEl = document.getElementById("actionsOutput");
-const dataScopeBannerEl = document.getElementById("dataScopeBanner");
-const dataScopeSummaryEl = document.getElementById("dataScopeSummary");
-const dataScopeLastScanEl = document.getElementById("dataScopeLastScan");
 let view = "analysis";
 let latestAnalyticsResult = null;
 let jobStatePollTimer = null;
@@ -195,20 +192,58 @@ function formatBannerTimestamp(lastScanTimestamp) {
 }
 
 function hideDataScopeBanner() {
-  if (dataScopeBannerEl) {
-    dataScopeBannerEl.hidden = true;
+  const existingBanner = document.getElementById("dataScopeBanner");
+  if (existingBanner) {
+    existingBanner.remove();
   }
 }
 
 function renderDataScopeBanner(analyticsResult, lastScanTimestamp) {
-  if (!dataScopeBannerEl || !dataScopeSummaryEl || !dataScopeLastScanEl) {
-    return;
+  // Remove existing banner if present
+  const existingBanner = document.getElementById("dataScopeBanner");
+  if (existingBanner) {
+    existingBanner.remove();
   }
 
   const normalized = normalizeForDashboard(analyticsResult);
-  dataScopeSummaryEl.textContent = `Mailtropy analyzed ${normalized.totalEmails.toLocaleString()} messages from All Mail`;
-  dataScopeLastScanEl.textContent = `Last scan: ${formatBannerTimestamp(lastScanTimestamp)}`;
-  dataScopeBannerEl.hidden = false;
+
+  // Create the banner section
+  const bannerSection = document.createElement("section");
+  bannerSection.id = "dataScopeBanner";
+  bannerSection.className = "data-scope-banner";
+  bannerSection.setAttribute("aria-label", "Data scope summary");
+
+  const leftDiv = document.createElement("div");
+  leftDiv.className = "data-scope-left";
+
+  const summaryP = document.createElement("p");
+  summaryP.id = "dataScopeSummary";
+  summaryP.className = "data-scope-title";
+  summaryP.textContent = `Mailtropy analyzed ${normalized.totalEmails.toLocaleString()} messages from All Mail`;
+  leftDiv.appendChild(summaryP);
+
+  // Add the subtext
+  const subtitle = document.createElement("p");
+  subtitle.className = "data-scope-subtitle";
+  subtitle.textContent = "Gmail groups related messages into conversations, so the count shown may differ from the above total";
+  leftDiv.appendChild(subtitle);
+
+  const rightDiv = document.createElement("div");
+  rightDiv.className = "data-scope-right";
+
+  const lastScanP = document.createElement("p");
+  lastScanP.id = "dataScopeLastScan";
+  lastScanP.className = "data-scope-last-scan";
+  lastScanP.textContent = `Last scan: ${formatBannerTimestamp(lastScanTimestamp)}`;
+  rightDiv.appendChild(lastScanP);
+
+  bannerSection.appendChild(leftDiv);
+  bannerSection.appendChild(rightDiv);
+
+  // Insert before analyticsContainerEl
+  if (analyticsContainerEl && analyticsContainerEl.parentNode) {
+    analyticsContainerEl.parentNode.insertBefore(bannerSection, analyticsContainerEl);
+  }
 }
 
 function renderDashboard(analyticsResult, lastScanTimestamp) {
@@ -357,6 +392,20 @@ async function pollAnalysisJobState() {
   stopJobStatePolling();
 }
 
+function updateScanUI() {
+  if (!viewActionsBtn || !analyticsContainerEl) {
+    return;
+  }
+
+  const shouldShow = !isAnalyzing && latestAnalyticsResult != null;
+
+  if (!shouldShow) {
+    hideDataScopeBanner();
+  }
+  viewActionsBtn.hidden = !shouldShow;
+  analyticsContainerEl.hidden = !shouldShow;
+}
+
 function updateLoadingState() {
   if (!loadingPlaceholderEl) {
     return;
@@ -388,6 +437,7 @@ function setAnalyzing(value) {
   }
   isAnalyzing = nextState;
   updateLoadingState();
+  updateScanUI();
 }
 
 export function setLoadingState() {
@@ -430,6 +480,7 @@ export async function loadExistingData() {
 
   if (!analyticsResult && jobStatus !== "complete") {
     latestAnalyticsResult = null;
+    updateScanUI();
     statusEl.classList.remove("error");
     statusEl.textContent = "No scan yet";
     if (analyticsContainerEl) {
@@ -443,6 +494,7 @@ export async function loadExistingData() {
   }
 
   latestAnalyticsResult = analyticsResult;
+  updateScanUI();
   statusEl.classList.remove("error");
   statusEl.textContent = "Loaded latest analysis";
   renderDataScopeBanner(analyticsResult, lastScanTimestamp);
