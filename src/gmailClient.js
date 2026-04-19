@@ -139,7 +139,7 @@ function buildMetadataUrl(messageId) {
   url.searchParams.set("format", "metadata");
   url.searchParams.append("metadataHeaders", "From");
   url.searchParams.append("metadataHeaders", "List-Unsubscribe");
-  url.searchParams.set("fields", "id,threadId,internalDate,labelIds,sizeEstimate,payload/headers");
+  url.searchParams.set("fields", "id,threadId,internalDate,labelIds,payload/headers");
   return url.toString();
 }
 
