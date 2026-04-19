@@ -1,4 +1,5 @@
 const analyzeBtn = document.getElementById("analyzeBtn");
+const loadingPlaceholderEl = document.getElementById("loadingPlaceholder");
 const statusEl = document.getElementById("status");
 const analyticsContainerEl = document.getElementById("analyticsContainer");
 const analysisViewEl = document.getElementById("analysisView");
@@ -12,6 +13,7 @@ const dataScopeLastScanEl = document.getElementById("dataScopeLastScan");
 let view = "analysis";
 let latestAnalyticsResult = null;
 let jobStatePollTimer = null;
+let isAnalyzing = false;
 const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
 const ANALYSIS_JOB_STATE_KEY = "analysisJobState";
 const JOB_POLL_INTERVAL_MS = 1500;
@@ -311,8 +313,9 @@ async function pollAnalysisJobState() {
   const status = typeof jobState?.status === "string" ? jobState.status : "idle";
 
   if (status === "running") {
-    statusEl.classList.remove("error");
-    statusEl.textContent = "Running...";
+    if (!isAnalyzing) {
+      setLoadingState();
+    }
     console.log("Running...");
     return;
   }
@@ -329,6 +332,7 @@ async function pollAnalysisJobState() {
     }
 
     latestAnalyticsResult = analyticsResult;
+    setAnalyzing(false);
     analyzeBtn.disabled = false;
     statusEl.classList.remove("error");
     statusEl.textContent = "Analysis complete";
@@ -349,16 +353,52 @@ async function pollAnalysisJobState() {
     return;
   }
 
+  setAnalyzing(false);
   stopJobStatePolling();
 }
 
-export function setLoadingState() {
-  analyzeBtn.disabled = true;
-  statusEl.classList.remove("error");
-  statusEl.textContent = "Running...";
+function updateLoadingState() {
+  if (!loadingPlaceholderEl) {
+    return;
+  }
+
+  if (isAnalyzing) {
+    if (!loadingPlaceholderEl.hasChildNodes()) {
+      loadingPlaceholderEl.innerHTML = `
+        <div id="loadingState" class="loading-state" aria-live="polite" aria-busy="true">
+          <div class="loading-indicator" aria-hidden="true"></div>
+          <div class="loading-text">
+            <p class="loading-title">Analyzing your inbox…</p>
+            <p class="loading-description">This may take a few moments depending on your email volume.</p>
+          </div>
+        </div>
+      `;
+    }
+  } else {
+    if (loadingPlaceholderEl.hasChildNodes()) {
+      loadingPlaceholderEl.innerHTML = "";
+    }
+  }
 }
 
-export function setErrorState(message) {
+function setAnalyzing(value) {
+  const nextState = value === true;
+  if (isAnalyzing === nextState) {
+    return;
+  }
+  isAnalyzing = nextState;
+  updateLoadingState();
+}
+
+export function setLoadingState() {
+  setAnalyzing(true);
+  analyzeBtn.disabled = true;
+  statusEl.classList.remove("error");
+  statusEl.textContent = "";
+}
+
+function setErrorState(message) {
+  setAnalyzing(false);
   analyzeBtn.disabled = false;
   statusEl.classList.add("error");
   statusEl.textContent = message || "Analysis failed.";
@@ -385,6 +425,8 @@ export async function loadExistingData() {
     console.log("Running...");
     return;
   }
+
+  setAnalyzing(false);
 
   if (!analyticsResult && jobStatus !== "complete") {
     latestAnalyticsResult = null;

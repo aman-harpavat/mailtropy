@@ -141,6 +141,46 @@ h1 {
   color: var(--danger);
 }
 
+.loading-state {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 15px 15px;
+  margin: 11px 0;
+  border-radius: 11px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-medium);
+}
+
+.loading-indicator {
+  width: 19px;
+  height: 19px;
+  border: 3px solid var(--surface-muted);
+  border-top-color: var(--text-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.loading-description {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 .results {
   border: 1px solid var(--border-medium);
   border-radius: 9px;
