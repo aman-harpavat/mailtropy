@@ -37,6 +37,9 @@ body {
 .app {
   width: 321px;
   padding: 15px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .popup-header {
@@ -332,6 +335,32 @@ h1 {
   border-radius: 7px;
   font-family: monospace;
   font-size: 13px;
+  color: var(--text-primary);
+}
+
+#actionsView {
+  margin-bottom: 15px;
+}
+
+.app-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--surface-muted);
+  display: flex;
+  justify-content: center;
+}
+
+.link-button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.link-button:hover {
   color: var(--text-primary);
 }
 

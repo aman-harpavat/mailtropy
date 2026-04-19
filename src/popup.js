@@ -7,6 +7,7 @@ const actionsViewEl = document.getElementById("actionsView");
 const viewActionsBtn = document.getElementById("viewActionsBtn");
 const backToAnalysisBtn = document.getElementById("backToAnalysisBtn");
 const actionsOutputEl = document.getElementById("actionsOutput");
+const privacyBtn = document.getElementById("privacyBtn");
 let view = "analysis";
 let latestAnalyticsResult = null;
 let jobStatePollTimer = null;
@@ -587,6 +588,13 @@ export async function runAnalysis() {
 
 export async function init() {
   analyzeBtn.addEventListener("click", runAnalysis);
+  if (privacyBtn) {
+    privacyBtn.addEventListener("click", () => {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("privacy.html")
+      });
+    });
+  }
   if (viewActionsBtn) {
     viewActionsBtn.addEventListener("click", () => setView("actions"));
   }
