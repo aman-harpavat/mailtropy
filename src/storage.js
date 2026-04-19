@@ -2,6 +2,7 @@ const NORMALIZED_EMAILS_KEY = "normalizedEmails";
 const ANALYTICS_RESULT_KEY = "analyticsResult";
 const LAST_SCAN_TIMESTAMP_KEY = "lastScanTimestamp";
 const ANALYSIS_JOB_STATE_KEY = "analysisJobState";
+const SCAN_PROGRESS_STATE_KEY = "scanProgressState";
 
 function cloneValue(value) {
   if (value === null || value === undefined) {
@@ -113,5 +114,43 @@ export async function getAnalysisJobState() {
     error: typeof value.error === "string" ? value.error : null,
     startedAt: Number.isFinite(value.startedAt) ? value.startedAt : null,
     finishedAt: Number.isFinite(value.finishedAt) ? value.finishedAt : null
+  };
+}
+
+export async function saveScanProgressState(scanProgressState) {
+  const source = scanProgressState && typeof scanProgressState === "object" ? scanProgressState : {};
+  const safeStatus = typeof source.scanStatus === "string" ? source.scanStatus : "idle";
+  const safeNextPageToken = typeof source.nextPageToken === "string" ? source.nextPageToken : null;
+  const safeProcessedCount = Number(source.processedCount);
+  const safeScanStartTime = Number(source.scanStartTime);
+
+  await storageSet({
+    [SCAN_PROGRESS_STATE_KEY]: {
+      scanStatus: safeStatus,
+      nextPageToken: safeNextPageToken,
+      processedCount: Number.isFinite(safeProcessedCount) && safeProcessedCount >= 0 ? safeProcessedCount : 0,
+      scanStartTime: Number.isFinite(safeScanStartTime) ? safeScanStartTime : null
+    }
+  });
+}
+
+export async function getScanProgressState() {
+  const result = await storageGet(SCAN_PROGRESS_STATE_KEY);
+  const value = result[SCAN_PROGRESS_STATE_KEY];
+
+  if (!value || typeof value !== "object") {
+    return {
+      scanStatus: "idle",
+      nextPageToken: null,
+      processedCount: 0,
+      scanStartTime: null
+    };
+  }
+
+  return {
+    scanStatus: typeof value.scanStatus === "string" ? value.scanStatus : "idle",
+    nextPageToken: typeof value.nextPageToken === "string" ? value.nextPageToken : null,
+    processedCount: Number.isFinite(value.processedCount) && value.processedCount >= 0 ? value.processedCount : 0,
+    scanStartTime: Number.isFinite(value.scanStartTime) ? value.scanStartTime : null
   };
 }

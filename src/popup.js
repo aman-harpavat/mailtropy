@@ -12,7 +12,9 @@ let latestAnalyticsResult = null;
 let jobStatePollTimer = null;
 let isAnalyzing = false;
 const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
+const CANCEL_ANALYSIS_MESSAGE = "CANCEL_ANALYSIS";
 const ANALYSIS_JOB_STATE_KEY = "analysisJobState";
+const SCAN_PROGRESS_STATE_KEY = "scanProgressState";
 const JOB_POLL_INTERVAL_MS = 1500;
 
 function sendRuntimeMessage(message) {
@@ -335,6 +337,9 @@ function stopJobStatePolling() {
 
 function startJobStatePolling() {
   stopJobStatePolling();
+  pollAnalysisJobState().catch((error) => {
+    console.error("Polling failed:", error?.message || error);
+  });
   jobStatePollTimer = setInterval(() => {
     pollAnalysisJobState().catch((error) => {
       console.error("Polling failed:", error?.message || error);
@@ -343,14 +348,17 @@ function startJobStatePolling() {
 }
 
 async function pollAnalysisJobState() {
-  const stored = await getStorageValues([ANALYSIS_JOB_STATE_KEY, "lastScanTimestamp"]);
+  const stored = await getStorageValues([ANALYSIS_JOB_STATE_KEY, SCAN_PROGRESS_STATE_KEY, "lastScanTimestamp"]);
   const jobState = stored?.[ANALYSIS_JOB_STATE_KEY] || {};
+  const scanProgress = stored?.[SCAN_PROGRESS_STATE_KEY] || {};
   const status = typeof jobState?.status === "string" ? jobState.status : "idle";
+  const scanStatus = typeof scanProgress?.scanStatus === "string" ? scanProgress.scanStatus : "idle";
 
-  if (status === "running") {
+  if (scanStatus === "running" || status === "running") {
     if (!isAnalyzing) {
       setLoadingState();
     }
+    analyzeBtn.textContent = "Stop Scan";
     console.log("Running...");
     return;
   }
@@ -376,7 +384,29 @@ async function pollAnalysisJobState() {
     if (viewActionsBtn) {
       viewActionsBtn.disabled = false;
     }
+    analyzeBtn.textContent = "Analyze Mail Box";
     console.log("Completed");
+    return;
+  }
+
+  if (status === "timeout" || scanStatus === "timeout") {
+    stopJobStatePolling();
+    setAnalyzing(false);
+    analyzeBtn.disabled = false;
+    analyzeBtn.textContent = "Analyze Mail Box";
+    statusEl.classList.add("error");
+    statusEl.textContent = "Scan exceeded time limit.";
+    console.log("Error: Scan exceeded time limit.");
+    return;
+  }
+
+  if (status === "stopped" || scanStatus === "stopped") {
+    stopJobStatePolling();
+    setAnalyzing(false);
+    analyzeBtn.disabled = false;
+    analyzeBtn.textContent = "Analyze Mail Box";
+    statusEl.classList.remove("error");
+    statusEl.textContent = "Scan stopped.";
     return;
   }
 
@@ -384,11 +414,13 @@ async function pollAnalysisJobState() {
     stopJobStatePolling();
     const message = typeof jobState?.error === "string" ? jobState.error : "Analysis failed.";
     setErrorState(message);
+    analyzeBtn.textContent = "Analyze Mail Box";
     console.log(`Error: ${message}`);
     return;
   }
 
   setAnalyzing(false);
+  analyzeBtn.textContent = "Analyze Mail Box";
   stopJobStatePolling();
 }
 
@@ -418,7 +450,7 @@ function updateLoadingState() {
           <div class="loading-indicator" aria-hidden="true"></div>
           <div class="loading-text">
             <p class="loading-title">Analyzing your inbox…</p>
-            <p class="loading-description">This may take a few moments depending on your email volume.</p>
+            <p class="loading-description">This may take some time depending on your email volume.</p>
           </div>
         </div>
       `;
@@ -442,7 +474,8 @@ function setAnalyzing(value) {
 
 export function setLoadingState() {
   setAnalyzing(true);
-  analyzeBtn.disabled = true;
+  analyzeBtn.disabled = false;
+  analyzeBtn.textContent = "Stop Scan";
   statusEl.classList.remove("error");
   statusEl.textContent = "";
 }
@@ -455,13 +488,20 @@ function setErrorState(message) {
 }
 
 export async function loadExistingData() {
-  const stored = await getStorageValues(["analyticsResult", "lastScanTimestamp", ANALYSIS_JOB_STATE_KEY]);
+  const stored = await getStorageValues([
+    "analyticsResult",
+    "lastScanTimestamp",
+    ANALYSIS_JOB_STATE_KEY,
+    SCAN_PROGRESS_STATE_KEY
+  ]);
   const analyticsResult = stored?.analyticsResult ?? null;
   const lastScanTimestamp = stored?.lastScanTimestamp ?? null;
   const jobState = stored?.[ANALYSIS_JOB_STATE_KEY] || {};
+  const scanProgress = stored?.[SCAN_PROGRESS_STATE_KEY] || {};
   const jobStatus = typeof jobState?.status === "string" ? jobState.status : "idle";
+  const scanStatus = typeof scanProgress?.scanStatus === "string" ? scanProgress.scanStatus : "idle";
 
-  if (jobStatus === "running") {
+  if (scanStatus === "running" || jobStatus === "running") {
     latestAnalyticsResult = null;
     setLoadingState();
     if (analyticsContainerEl) {
@@ -477,6 +517,7 @@ export async function loadExistingData() {
   }
 
   setAnalyzing(false);
+  analyzeBtn.textContent = "Analyze Mail Box";
 
   if (!analyticsResult && jobStatus !== "complete") {
     latestAnalyticsResult = null;
@@ -505,6 +546,22 @@ export async function loadExistingData() {
 }
 
 export async function runAnalysis() {
+  if (isAnalyzing) {
+    try {
+      await sendRuntimeMessage({ type: CANCEL_ANALYSIS_MESSAGE });
+    } catch (error) {
+      console.log(`Error: ${error?.message || "Failed to stop scan."}`);
+    } finally {
+      stopJobStatePolling();
+      setAnalyzing(false);
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = "Analyze Mail Box";
+      statusEl.classList.remove("error");
+      statusEl.textContent = "Scan stopped.";
+    }
+    return;
+  }
+
   setLoadingState();
   if (analyticsContainerEl) {
     analyticsContainerEl.hidden = true;

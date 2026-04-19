@@ -5,9 +5,44 @@ const BATCH_SIZE = 20;
 const BATCH_DELAY_MS = 400;
 const MAX_RETRIES = 3;
 const BACKOFF_BASE_MS = 500;
+const REQUEST_TIMEOUT_MS = 15000;
+const GLOBAL_SCAN_TIMEOUT_MS = 30 * 60 * 1000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError" || error?.code === "SCAN_ABORTED";
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw createError("Scan aborted", "SCAN_ABORTED");
+  }
+}
+
+function fetchWithTimeout(url, options, timeout = REQUEST_TIMEOUT_MS, fetchImpl = fetch) {
+  let timerId;
+
+  return Promise.race([
+    fetchImpl(url, options),
+    new Promise((_, reject) => {
+      timerId = setTimeout(() => {
+        reject(createError("Request timeout", "REQUEST_TIMEOUT"));
+      }, timeout);
+    })
+  ]).finally(() => {
+    if (timerId) {
+      clearTimeout(timerId);
+    }
+  });
 }
 
 function isQuotaRelated403(errorPayload) {
@@ -24,15 +59,40 @@ function isQuotaRelated403(errorPayload) {
   );
 }
 
-async function gmailGet(url, accessToken, fetchImpl = fetch) {
+async function gmailGet(url, accessToken, { fetchImpl = fetch, signal } = {}) {
+  let timeoutRetryCount = 0;
+
   for (let retry = 0; ; retry += 1) {
-    const response = await fetchImpl(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json"
+    throwIfAborted(signal);
+
+    let response;
+    try {
+      response = await fetchWithTimeout(
+        url,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json"
+          },
+          signal
+        },
+        REQUEST_TIMEOUT_MS,
+        fetchImpl
+      );
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw createError("Scan aborted", "SCAN_ABORTED");
       }
-    });
+      if (error?.code === "REQUEST_TIMEOUT") {
+        if (timeoutRetryCount < 1) {
+          timeoutRetryCount += 1;
+          continue;
+        }
+        throw createError("Request timeout", "REQUEST_TIMEOUT");
+      }
+      throw error;
+    }
 
     const text = await response.text();
     let payload = {};
@@ -43,6 +103,11 @@ async function gmailGet(url, accessToken, fetchImpl = fetch) {
         payload = {};
       }
     }
+
+    if (response.status === 401) {
+      throw createError("Authentication expired. Please re-authenticate.", "TOKEN_EXPIRED");
+    }
+
     const retryable = response.status === 429 || (response.status === 403 && isQuotaRelated403(payload));
 
     if (response.ok) {
@@ -143,6 +208,12 @@ function toYearMonth(timestamp) {
   return `${year}-${month}`;
 }
 
+function assertGlobalScanWindow(scanStartTime) {
+  if (Date.now() - scanStartTime > GLOBAL_SCAN_TIMEOUT_MS) {
+    throw createError("Scan exceeded time limit.", "SCAN_TIMEOUT");
+  }
+}
+
 /**
  * @typedef {Object} NormalizedEmail
  * @property {string} messageId
@@ -191,57 +262,93 @@ export function normalizeBatch(rawMessages) {
 /**
  * Fetches raw Gmail metadata responses for up to 20,000 unique messages.
  * @param {string} accessToken
- * @param {{ fetchImpl?: typeof fetch }} options
- * @returns {Promise<object[]>}
+ * @param {{
+ *   fetchImpl?: typeof fetch,
+ *   signal?: AbortSignal,
+ *   scanStartTime?: number | null,
+ *   onProgress?: (progress: { nextPageToken: string | null, processedCount: number, scanStartTime: number }) => Promise<void> | void
+ * }} options
+ * @returns {Promise<{ rawMessages: object[], nextPageToken: string | null, processedCount: number }>}
  */
-export async function fetchGmailMetadata(accessToken, { fetchImpl = fetch } = {}) {
+export async function fetchGmailMetadata(
+  accessToken,
+  {
+    fetchImpl = fetch,
+    signal,
+    scanStartTime: initialScanStartTime = null,
+    onProgress
+  } = {}
+) {
   if (!accessToken || typeof accessToken !== "string") {
     throw new Error("fetchGmailMetadata requires a valid accessToken string.");
   }
 
-  const uniqueMessageIds = new Set();
-  let nextPageToken;
+  const scanStartTime =
+    Number.isFinite(Number(initialScanStartTime)) && Number(initialScanStartTime) > 0
+      ? Number(initialScanStartTime)
+      : Date.now();
+  let nextPageToken = null;
+  const processedIds = new Set();
+  const results = [];
+  let processedCount = 0;
 
   do {
-    const page = await gmailGet(buildListUrl(nextPageToken), accessToken, fetchImpl);
+    throwIfAborted(signal);
+    assertGlobalScanWindow(scanStartTime);
+
+    const page = await gmailGet(buildListUrl(nextPageToken), accessToken, { fetchImpl, signal });
     const messages = Array.isArray(page?.messages) ? page.messages : [];
+    const ids = [];
 
     for (const message of messages) {
-      if (typeof message?.id === "string") {
-        uniqueMessageIds.add(message.id);
-      }
-      if (uniqueMessageIds.size >= MAX_MESSAGES) {
+      if (processedCount >= MAX_MESSAGES) {
         break;
       }
+      if (typeof message?.id === "string" && !processedIds.has(message.id)) {
+        ids.push(message.id);
+      }
     }
 
-    nextPageToken = page?.nextPageToken;
-  } while (nextPageToken && uniqueMessageIds.size < MAX_MESSAGES);
+    const batches = chunk(ids, BATCH_SIZE);
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+      throwIfAborted(signal);
+      assertGlobalScanWindow(scanStartTime);
 
-  const ids = Array.from(uniqueMessageIds);
-  const batches = chunk(ids, BATCH_SIZE);
-  const results = [];
-  const processedIds = new Set();
+      const batch = batches[batchIndex];
+      const batchResults = await Promise.all(
+        batch.map(async (id) => {
+          throwIfAborted(signal);
+          if (processedIds.has(id)) {
+            return null;
+          }
+          const metadata = await gmailGet(buildMetadataUrl(id), accessToken, { fetchImpl, signal });
+          processedIds.add(id);
+          return metadata;
+        })
+      );
 
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-    const batch = batches[batchIndex];
-    const batchResults = await Promise.all(
-      batch.map(async (id) => {
-        if (processedIds.has(id)) {
-          return null;
-        }
-        const metadata = await gmailGet(buildMetadataUrl(id), accessToken, fetchImpl);
-        processedIds.add(id);
-        return metadata;
-      })
-    );
+      results.push(...batchResults.filter(Boolean));
+      processedCount = results.length;
 
-    results.push(...batchResults.filter(Boolean));
+      if (typeof onProgress === "function") {
+        await onProgress({
+          nextPageToken: typeof page?.nextPageToken === "string" ? page.nextPageToken : null,
+          processedCount,
+          scanStartTime
+        });
+      }
 
-    if (batchIndex < batches.length - 1) {
-      await sleep(BATCH_DELAY_MS);
+      if (batchIndex < batches.length - 1) {
+        await sleep(BATCH_DELAY_MS);
+      }
     }
-  }
 
-  return results;
+    nextPageToken = typeof page?.nextPageToken === "string" ? page.nextPageToken : null;
+  } while (nextPageToken && processedCount < MAX_MESSAGES);
+
+  return {
+    rawMessages: results,
+    nextPageToken: null,
+    processedCount
+  };
 }
