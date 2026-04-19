@@ -11,9 +11,11 @@ import {
 
 const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
 const CANCEL_ANALYSIS_MESSAGE = "CANCEL_ANALYSIS";
+const RECONNECT_GMAIL_MESSAGE = "RECONNECT_GMAIL";
 
 let activeScanController = null;
 let activeScanPromise = null;
+let activeAccessToken = null;
 
 function getToken(interactive = true) {
   return new Promise((resolve, reject) => {
@@ -31,6 +33,39 @@ function getToken(interactive = true) {
   });
 }
 
+async function clearAuthToken(token) {
+  if (!token || typeof token !== "string") {
+    return;
+  }
+
+  return new Promise((resolve) => {
+    chrome.identity.removeCachedAuthToken({ token }, () => {
+      resolve();
+    });
+  });
+}
+
+async function clearStoredAuthState() {
+  return new Promise((resolve) => {
+    chrome.storage.local.remove(["authState", "oauthToken", "gmailAuthState"], () => {
+      resolve();
+    });
+  });
+}
+
+function isInvalidGrantError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("invalid_grant");
+}
+
+async function triggerReauthFlow() {
+  try {
+    await getToken(true);
+  } catch (error) {
+    console.error("Re-authentication failed:", error?.message || "Unknown error");
+  }
+}
+
 async function initializeStaleRunningState() {
   const scanProgress = await getScanProgressState();
   if (scanProgress.scanStatus === "running") {
@@ -45,24 +80,35 @@ async function initializeStaleRunningState() {
 
 async function runAnalyzePipeline({ signal, scanStartTime, onProgress }) {
   const token = await getToken(true);
+  activeAccessToken = token;
   const fetchResult = await fetchGmailMetadata(token, {
     signal,
     scanStartTime,
     onProgress
+  }).catch(async (error) => {
+    if (error?.code === "TOKEN_EXPIRED") {
+      await clearAuthToken(token);
+      await clearStoredAuthState();
+    }
+    throw error;
   });
 
-  const normalizedEmails = normalizeBatch(fetchResult.rawMessages);
-  const analyticsResult = analyzeEmails(normalizedEmails);
-  const nextScanTimestamp = Date.now();
+  try {
+    const normalizedEmails = normalizeBatch(fetchResult.rawMessages);
+    const analyticsResult = analyzeEmails(normalizedEmails);
+    const nextScanTimestamp = Date.now();
 
-  await saveEmails(normalizedEmails);
-  await saveAnalyticsResult(analyticsResult);
-  await saveLastScanTimestamp(nextScanTimestamp);
+    await saveEmails(normalizedEmails);
+    await saveAnalyticsResult(analyticsResult);
+    await saveLastScanTimestamp(nextScanTimestamp);
 
-  return {
-    analyticsResult,
-    processedCount: fetchResult.processedCount
-  };
+    return {
+      analyticsResult,
+      processedCount: fetchResult.processedCount
+    };
+  } finally {
+    activeAccessToken = null;
+  }
 }
 
 async function runAnalysisJob() {
@@ -154,19 +200,42 @@ async function runAnalysisJob() {
       }
 
       if (code === "TOKEN_EXPIRED") {
+        await clearAuthToken(activeAccessToken);
+        await clearStoredAuthState();
         await saveScanProgressState({
-          scanStatus: "idle",
+          scanStatus: "stopped",
           nextPageToken: null,
           processedCount: 0,
           scanStartTime: null
         });
         await saveAnalysisJobState({
-          status: "error",
+          status: "stopped",
           result: null,
-          error: message,
+          error: "Authentication expired. Please reconnect Gmail.",
           startedAt: scanStartTime,
           finishedAt: Date.now()
         });
+        await triggerReauthFlow();
+        return;
+      }
+
+      if (isInvalidGrantError(error)) {
+        await clearAuthToken(activeAccessToken);
+        await clearStoredAuthState();
+        await saveScanProgressState({
+          scanStatus: "stopped",
+          nextPageToken: null,
+          processedCount: 0,
+          scanStartTime: null
+        });
+        await saveAnalysisJobState({
+          status: "stopped",
+          result: null,
+          error: "Authentication expired. Please reconnect Gmail.",
+          startedAt: scanStartTime,
+          finishedAt: Date.now()
+        });
+        await triggerReauthFlow();
         return;
       }
 
@@ -228,6 +297,43 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
+  if (message.type === RECONNECT_GMAIL_MESSAGE) {
+    sendResponse({ started: true });
+    (async () => {
+      if (activeScanController) {
+        activeScanController.abort();
+      }
+
+      await clearAuthToken(activeAccessToken);
+      activeAccessToken = null;
+      try {
+        const cachedToken = await getToken(false);
+        await clearAuthToken(cachedToken);
+      } catch (error) {
+        console.error("No cached token available to clear:", error?.message || "Unknown error");
+      }
+
+      await clearStoredAuthState();
+      await saveScanProgressState({
+        scanStatus: "stopped",
+        nextPageToken: null,
+        processedCount: 0,
+        scanStartTime: null
+      });
+      await saveAnalysisJobState({
+        status: "stopped",
+        result: null,
+        error: null,
+        startedAt: null,
+        finishedAt: Date.now()
+      });
+      await triggerReauthFlow();
+    })().catch((error) => {
+      console.error("Reconnect failed:", error?.message || "Unknown error");
+    });
+    return;
+  }
+
   if (message.type === CANCEL_ANALYSIS_MESSAGE) {
     if (activeScanController) {
       activeScanController.abort();
@@ -255,5 +361,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 initializeStaleRunningState().catch((error) => {
-  console.error("Failed to initialize scan state:", error?.message || error);
+  console.error("Failed to initialize scan state:", error?.message || "Unknown error");
 });

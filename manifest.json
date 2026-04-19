@@ -20,7 +20,7 @@
   "web_accessible_resources": [
     {
       "resources": ["privacy.html"],
-      "matches": ["<all_urls>"]
+      "matches": ["chrome-extension://*/*"]
     }
   ]
 }

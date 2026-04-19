@@ -8,6 +8,7 @@ const viewActionsBtn = document.getElementById("viewActionsBtn");
 const backToAnalysisBtn = document.getElementById("backToAnalysisBtn");
 const actionsOutputEl = document.getElementById("actionsOutput");
 const privacyBtn = document.getElementById("privacyBtn");
+const reconnectBtn = document.getElementById("reconnectBtn");
 let view = "analysis";
 let latestAnalyticsResult = null;
 let jobStatePollTimer = null;
@@ -28,6 +29,44 @@ function sendRuntimeMessage(message) {
       resolve(response);
     });
   });
+}
+
+function getAuthToken(interactive) {
+  return new Promise((resolve, reject) => {
+    chrome.identity.getAuthToken({ interactive }, (token) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!token) {
+        reject(new Error("No OAuth token returned."));
+        return;
+      }
+      resolve(token);
+    });
+  });
+}
+
+function removeCachedAuthToken(token) {
+  return new Promise((resolve) => {
+    if (!token || typeof token !== "string") {
+      resolve();
+      return;
+    }
+    chrome.identity.removeCachedAuthToken({ token }, () => {
+      resolve();
+    });
+  });
+}
+
+async function forceInteractiveReauth() {
+  try {
+    const cachedToken = await getAuthToken(false);
+    await removeCachedAuthToken(cachedToken);
+  } catch (_error) {
+    // No cached token is fine; proceed to interactive auth.
+  }
+  return getAuthToken(true);
 }
 
 function getStorageValues(keys) {
@@ -360,7 +399,6 @@ async function pollAnalysisJobState() {
       setLoadingState();
     }
     analyzeBtn.textContent = "Stop Scan";
-    console.log("Running...");
     return;
   }
 
@@ -386,7 +424,6 @@ async function pollAnalysisJobState() {
       viewActionsBtn.disabled = false;
     }
     analyzeBtn.textContent = "Analyze Mail Box";
-    console.log("Completed");
     return;
   }
 
@@ -397,7 +434,6 @@ async function pollAnalysisJobState() {
     analyzeBtn.textContent = "Analyze Mail Box";
     statusEl.classList.add("error");
     statusEl.textContent = "Scan exceeded time limit.";
-    console.log("Error: Scan exceeded time limit.");
     return;
   }
 
@@ -416,7 +452,6 @@ async function pollAnalysisJobState() {
     const message = typeof jobState?.error === "string" ? jobState.error : "Analysis failed.";
     setErrorState(message);
     analyzeBtn.textContent = "Analyze Mail Box";
-    console.log(`Error: ${message}`);
     return;
   }
 
@@ -513,7 +548,6 @@ export async function loadExistingData() {
     }
     hideDataScopeBanner();
     startJobStatePolling();
-    console.log("Running...");
     return;
   }
 
@@ -551,7 +585,7 @@ export async function runAnalysis() {
     try {
       await sendRuntimeMessage({ type: CANCEL_ANALYSIS_MESSAGE });
     } catch (error) {
-      console.log(`Error: ${error?.message || "Failed to stop scan."}`);
+      console.error("Failed to stop scan:", error?.message || "Unknown error");
     } finally {
       stopJobStatePolling();
       setAnalyzing(false);
@@ -571,7 +605,6 @@ export async function runAnalysis() {
     viewActionsBtn.disabled = true;
   }
   hideDataScopeBanner();
-  console.log("Running...");
 
   try {
     const response = await sendRuntimeMessage({ type: START_ANALYSIS_MESSAGE });
@@ -582,12 +615,47 @@ export async function runAnalysis() {
   } catch (error) {
     stopJobStatePolling();
     setErrorState(error?.message || "Analysis failed.");
-    console.log(`Error: ${error?.message || "Analysis failed."}`);
+    console.error("Failed to start analysis:", error?.message || "Unknown error");
   }
 }
 
 export async function init() {
   analyzeBtn.addEventListener("click", runAnalysis);
+  if (reconnectBtn) {
+    reconnectBtn.addEventListener("click", async () => {
+      setView("analysis");
+      window.scrollTo(0, 0);
+      stopJobStatePolling();
+      setAnalyzing(false);
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = "Analyze Mail Box";
+      statusEl.classList.remove("error");
+      statusEl.textContent = "Reconnecting Gmail...";
+      reconnectBtn.disabled = true;
+
+      let reconnectMessageError = null;
+      try {
+        await sendRuntimeMessage({ type: "RECONNECT_GMAIL" });
+      } catch (error) {
+        reconnectMessageError = error;
+      }
+
+      try {
+        await forceInteractiveReauth();
+        statusEl.classList.remove("error");
+        statusEl.textContent = "Gmail reconnected. You can start a new scan.";
+      } catch (error) {
+        statusEl.classList.add("error");
+        statusEl.textContent = "Reconnect failed. Please try again.";
+        if (reconnectMessageError) {
+          console.error("Reconnect reset failed:", reconnectMessageError?.message || "Unknown error");
+        }
+        console.error("Reconnect Gmail failed:", error?.message || "Unknown error");
+      } finally {
+        reconnectBtn.disabled = false;
+      }
+    });
+  }
   if (privacyBtn) {
     privacyBtn.addEventListener("click", () => {
       chrome.tabs.create({
