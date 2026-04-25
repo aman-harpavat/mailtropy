@@ -13,6 +13,8 @@ let view = "analysis";
 let latestAnalyticsResult = null;
 let jobStatePollTimer = null;
 let isAnalyzing = false;
+let copyFeedbackTimerId = null;
+let copyFeedbackButton = null;
 const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
 const CANCEL_ANALYSIS_MESSAGE = "CANCEL_ANALYSIS";
 const ANALYSIS_JOB_STATE_KEY = "analysisJobState";
@@ -271,6 +273,85 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+async function copyTextToClipboard(value) {
+  const text = String(value || "");
+  if (!text) {
+    return false;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return copied;
+}
+
+function setCopyFeedback(button, isSuccess) {
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+  const defaultAriaLabel = button.getAttribute("data-default-aria-label") || "Copy full sender address";
+
+  if (copyFeedbackButton && copyFeedbackButton !== button) {
+    copyFeedbackButton.classList.remove("copied", "copy-failed");
+    copyFeedbackButton.textContent = "Copy";
+    const previousDefaultAriaLabel =
+      copyFeedbackButton.getAttribute("data-default-aria-label") || "Copy full sender address";
+    copyFeedbackButton.setAttribute("aria-label", previousDefaultAriaLabel);
+  }
+
+  if (copyFeedbackTimerId) {
+    clearTimeout(copyFeedbackTimerId);
+    copyFeedbackTimerId = null;
+  }
+  copyFeedbackButton = button;
+
+  if (isSuccess) {
+    button.classList.add("copied");
+    button.textContent = "Done";
+    button.setAttribute("aria-label", "Copied");
+  } else {
+    button.classList.add("copy-failed");
+    button.textContent = "Error";
+    button.setAttribute("aria-label", "Copy failed");
+  }
+
+  copyFeedbackTimerId = window.setTimeout(() => {
+    button.classList.remove("copied", "copy-failed");
+    button.textContent = "Copy";
+    button.setAttribute("aria-label", defaultAriaLabel);
+    copyFeedbackTimerId = null;
+    copyFeedbackButton = null;
+  }, 1200);
+}
+
+async function handleCopyButtonClick(event) {
+  const copyButton = event.target instanceof Element ? event.target.closest(".copy-value-btn") : null;
+  if (!copyButton) {
+    return;
+  }
+
+  event.preventDefault();
+  const fullValue = copyButton.getAttribute("data-copy-value") || "";
+  try {
+    const copied = await copyTextToClipboard(fullValue);
+    setCopyFeedback(copyButton, copied);
+  } catch (error) {
+    console.error("Copy failed:", error?.message || "Unknown error");
+    setCopyFeedback(copyButton, false);
+  }
+}
+
 function renderActionsView() {
   if (!actionsOutputEl) {
     return;
@@ -289,12 +370,29 @@ function renderActionsView() {
   const domainQuery = typeof topDomain?.domain === "string" && topDomain.domain ? `from:${topDomain.domain}` : "";
   const subscriptionSender = typeof topSubscriptionSender?.sender === "string" ? topSubscriptionSender.sender : "";
   const subscriptionSearchQuery = subscriptionSender ? `from:${subscriptionSender}` : "";
+  const buildCopyableSearchBox = (value, ariaLabel) => {
+    const safeValue = escapeHtml(value);
+    const safeAriaLabel = escapeHtml(ariaLabel);
+    return `
+      <div class="search-box-row">
+        <div class="search-box">${safeValue}</div>
+        <button
+          type="button"
+          class="bar-copy-btn copy-value-btn"
+          data-copy-value="${safeValue}"
+          title="Copy full value"
+          aria-label="${safeAriaLabel}"
+          data-default-aria-label="${safeAriaLabel}"
+        >Copy</button>
+      </div>
+    `;
+  };
 
   const senderQueryBox = senderQuery
-    ? `<p class="query-label">For Sender</p><div class="search-box">${escapeHtml(senderQuery)}</div>`
+    ? `<p class="query-label">For Sender</p>${buildCopyableSearchBox(senderQuery, "Copy sender query")}`
     : "";
   const domainQueryBox = domainQuery
-    ? `<p class="query-label">For Domain</p><div class="search-box">${escapeHtml(domainQuery)}</div>`
+    ? `<p class="query-label">For Domain</p>${buildCopyableSearchBox(domainQuery, "Copy domain query")}`
     : "";
   
   const afterUnsubscribeLine = subscriptionSearchQuery
@@ -458,7 +556,17 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
       return `
         <div class="bar-row">
           <div class="bar-header">
-            <span class="bar-label">${safeLabel}</span>
+            <div class="bar-label-wrap">
+              <span class="bar-label" data-full-label="${safeLabel}" title="${safeLabel}" tabindex="0">${safeLabel}</span>
+              <button
+                type="button"
+                class="bar-copy-btn copy-value-btn"
+                data-copy-value="${safeLabel}"
+                title="Copy full value"
+                aria-label="Copy full sender address"
+                data-default-aria-label="Copy full sender address"
+              >Copy</button>
+            </div>
             <span class="bar-metrics">${count} emails • ${percentage}%</span>
           </div>
           <div class="bar-track">
@@ -769,6 +877,12 @@ export async function runAnalysis() {
 
 export async function init() {
   analyzeBtn.addEventListener("click", runAnalysis);
+  if (analyticsContainerEl) {
+    analyticsContainerEl.addEventListener("click", handleCopyButtonClick);
+  }
+  if (actionsOutputEl) {
+    actionsOutputEl.addEventListener("click", handleCopyButtonClick);
+  }
   if (reconnectBtn) {
     reconnectBtn.addEventListener("click", async () => {
       setView("analysis");
