@@ -33,6 +33,14 @@ function getToken(interactive = true) {
   });
 }
 
+async function getTokenWithFallback() {
+  try {
+    return await getToken(false);
+  } catch (_error) {
+    return getToken(true);
+  }
+}
+
 async function clearAuthToken(token) {
   if (!token || typeof token !== "string") {
     return;
@@ -60,7 +68,7 @@ function isInvalidGrantError(error) {
 
 async function triggerReauthFlow() {
   try {
-    await getToken(true);
+    await getTokenWithFallback();
   } catch (error) {
     console.error("Re-authentication failed:", error?.message || "Unknown error");
   }
@@ -78,8 +86,7 @@ async function initializeStaleRunningState() {
   }
 }
 
-async function runAnalyzePipeline({ signal, scanStartTime, onProgress }) {
-  const token = await getToken(true);
+async function runAnalyzePipeline({ token, signal, scanStartTime, onProgress }) {
   activeAccessToken = token;
   const fetchResult = await fetchGmailMetadata(token, {
     signal,
@@ -111,13 +118,14 @@ async function runAnalyzePipeline({ signal, scanStartTime, onProgress }) {
   }
 }
 
-async function runAnalysisJob() {
+async function runAnalysisJob(prevalidatedToken = null) {
   if (activeScanPromise) {
     return activeScanPromise;
   }
 
   activeScanController = new AbortController();
   const scanStartTime = Date.now();
+  const token = prevalidatedToken || (await getTokenWithFallback());
 
   await saveScanProgressState({
     scanStatus: "running",
@@ -136,6 +144,7 @@ async function runAnalysisJob() {
   activeScanPromise = (async () => {
     try {
       const result = await runAnalyzePipeline({
+        token,
         signal: activeScanController.signal,
         scanStartTime,
         onProgress: async (progress) => {
@@ -284,17 +293,64 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === START_ANALYSIS_MESSAGE) {
-    sendResponse({ started: true });
-    runAnalysisJob().catch(async (error) => {
-      await saveAnalysisJobState({
-        status: "error",
-        result: null,
-        error: error?.message || "Unknown error",
-        startedAt: Date.now(),
-        finishedAt: Date.now()
-      });
+    (async () => {
+      try {
+        const token = await getTokenWithFallback();
+        runAnalysisJob(token).catch(async (error) => {
+          await Promise.all([
+            saveScanProgressState({
+              scanStatus: "stopped",
+              nextPageToken: null,
+              processedCount: 0,
+              scanStartTime: null
+            }),
+            saveAnalysisJobState({
+              status: "error",
+              result: null,
+              error: error?.message || "Unknown error",
+              startedAt: null,
+              finishedAt: Date.now()
+            })
+          ]);
+        });
+        sendResponse({ started: true });
+      } catch (error) {
+        await Promise.all([
+          saveScanProgressState({
+            scanStatus: "stopped",
+            nextPageToken: null,
+            processedCount: 0,
+            scanStartTime: null
+          }),
+          saveAnalysisJobState({
+            status: "error",
+            result: null,
+            error: error?.message || "Unknown error",
+            startedAt: null,
+            finishedAt: Date.now()
+          })
+        ]);
+        sendResponse({ started: false, error: error?.message || "Unknown error" });
+      }
+    })().catch(async (error) => {
+      await Promise.all([
+        saveScanProgressState({
+          scanStatus: "stopped",
+          nextPageToken: null,
+          processedCount: 0,
+          scanStartTime: null
+        }),
+        saveAnalysisJobState({
+          status: "error",
+          result: null,
+          error: error?.message || "Unknown error",
+          startedAt: null,
+          finishedAt: Date.now()
+        })
+      ]);
+      sendResponse({ started: false, error: error?.message || "Unknown error" });
     });
-    return;
+    return true;
   }
 
   if (message.type === RECONNECT_GMAIL_MESSAGE) {

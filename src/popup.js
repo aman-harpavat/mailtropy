@@ -49,6 +49,14 @@ function getAuthToken(interactive) {
   });
 }
 
+async function getAuthTokenWithFallback() {
+  try {
+    return await getAuthToken(false);
+  } catch (_error) {
+    return getAuthToken(true);
+  }
+}
+
 function removeCachedAuthToken(token) {
   return new Promise((resolve) => {
     if (!token || typeof token !== "string") {
@@ -742,13 +750,14 @@ export async function runAnalysis() {
   }
 
   stopJobStatePolling();
-  setLoadingState();
 
   try {
+    await getAuthTokenWithFallback();
     await clearStoredResults();
+    setLoadingState();
     const response = await sendRuntimeMessage({ type: START_ANALYSIS_MESSAGE });
     if (!response?.started) {
-      throw new Error("Failed to start analysis job.");
+      throw new Error(response?.error || "Failed to start analysis job.");
     }
     startJobStatePolling();
   } catch (error) {
