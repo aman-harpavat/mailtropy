@@ -129,7 +129,7 @@ h1 {
 .secondary-btn {
   width: 100%;
   margin-top: var(--space-11);
-  margin-bottom: var(--space-15);
+  margin-bottom: var(--space-11);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md-soft);
   padding: var(--space-9) var(--space-11);
@@ -154,6 +154,15 @@ h1 {
 
 .status.error {
   color: var(--danger);
+}
+
+.status.empty {
+  text-align: center;
+  color: var(--text-primary);
+}
+
+#loadingPlaceholder:empty {
+  display: none;
 }
 
 .loading-state {
@@ -246,6 +255,18 @@ h1 {
   color: var(--text-primary);
 }
 
+.section-title {
+  margin: 0;
+  font-size: var(--font-15);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.section-title + .analytics-block,
+.section-title + .action-block {
+  margin-top: var(--space-11);
+}
+
 .actions-note {
   margin: 0 0 var(--space-11);
   font-size: var(--font-11);
@@ -270,7 +291,7 @@ h1 {
   background: var(--panel-bg);
   border-radius: 11px;
   padding: var(--space-15);
-  margin-bottom: var(--space-21);
+  margin-bottom: 0;
 }
 
 .action-block:last-child {
@@ -304,6 +325,10 @@ h1 {
   font-weight: 400;
   color: var(--text-primary);
   line-height: 1.6;
+}
+
+.action-list li:last-child {
+  margin-bottom: 0;
 }
 
 .search-box {
@@ -455,6 +480,10 @@ pre {
 
 .bar-row {
   margin-bottom: var(--space-15);
+}
+
+.bar-row:last-child {
+  margin-bottom: 0;
 }
 
 .bar-header {

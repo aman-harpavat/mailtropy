@@ -18,6 +18,8 @@ const CANCEL_ANALYSIS_MESSAGE = "CANCEL_ANALYSIS";
 const ANALYSIS_JOB_STATE_KEY = "analysisJobState";
 const SCAN_PROGRESS_STATE_KEY = "scanProgressState";
 const JOB_POLL_INTERVAL_MS = 1500;
+const EMPTY_INBOX_MESSAGE = "No emails found. Mailtropy requires at least one email to generate analytics.";
+const AUTH_FAILURE_MESSAGE = "Authentication failed. Please reconnect Gmail.";
 
 function sendRuntimeMessage(message) {
   return new Promise((resolve, reject) => {
@@ -81,6 +83,18 @@ function getStorageValues(keys) {
   });
 }
 
+function setStorageValues(items) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(items, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 function normalizeForDashboard(analyticsResult) {
   const source = analyticsResult && typeof analyticsResult === "object" ? analyticsResult : {};
   const totalEmails = Number(source.totalEmails) || 0;
@@ -120,6 +134,124 @@ function normalizeForDashboard(analyticsResult) {
     totalSubscriptionSenders,
     topSubscriptionSenders
   };
+}
+
+function setStatusMessage(message, { isError = false, isEmpty = false } = {}) {
+  const hasMessage = typeof message === "string" && message.trim().length > 0;
+  if (hasMessage && !statusEl.isConnected && analysisViewEl) {
+    if (analyticsContainerEl && analyticsContainerEl.parentNode === analysisViewEl) {
+      analysisViewEl.insertBefore(statusEl, analyticsContainerEl);
+    } else if (viewActionsBtn && viewActionsBtn.parentNode === analysisViewEl) {
+      analysisViewEl.insertBefore(statusEl, viewActionsBtn);
+    } else {
+      analysisViewEl.appendChild(statusEl);
+    }
+  }
+
+  if (!hasMessage) {
+    statusEl.classList.remove("error", "empty");
+    statusEl.textContent = "";
+    if (statusEl.isConnected) {
+      statusEl.remove();
+    }
+    return;
+  }
+
+  statusEl.classList.toggle("error", Boolean(isError));
+  statusEl.classList.toggle("empty", Boolean(isEmpty));
+  statusEl.textContent = message;
+}
+
+function hideResultSections() {
+  if (analyticsContainerEl) {
+    analyticsContainerEl.hidden = true;
+    analyticsContainerEl.innerHTML = "";
+  }
+  if (viewActionsBtn) {
+    viewActionsBtn.hidden = true;
+    viewActionsBtn.disabled = true;
+  }
+  hideDataScopeBanner();
+}
+
+function isMeaningfulAnalyticsResult(analyticsResult) {
+  if (!analyticsResult || typeof analyticsResult !== "object") {
+    return false;
+  }
+
+  const normalized = normalizeForDashboard(analyticsResult);
+  return (
+    normalized.totalEmails > 0 ||
+    normalized.uniqueSenders > 0 ||
+    normalized.uniqueDomains > 0 ||
+    normalized.totalSubscriptionEmails > 0 ||
+    normalized.totalSubscriptionSenders > 0 ||
+    normalized.topSenders.length > 0 ||
+    normalized.topDomains.length > 0 ||
+    normalized.topSubscriptionSenders.length > 0
+  );
+}
+
+function isEmptyAnalysisState({ analyticsResult, normalizedEmails, processedCount }) {
+  const safeProcessedCount = Number(processedCount);
+  const hasZeroProcessed = Number.isFinite(safeProcessedCount) && safeProcessedCount === 0;
+  const hasNoNormalizedEmails = Array.isArray(normalizedEmails) && normalizedEmails.length === 0;
+  const hasNoMeaningfulAnalytics = !isMeaningfulAnalyticsResult(analyticsResult);
+
+  return hasZeroProcessed || hasNoNormalizedEmails || hasNoMeaningfulAnalytics;
+}
+
+function showEmptyState() {
+  stopJobStatePolling();
+  setAnalyzing(false);
+  analyzeBtn.disabled = false;
+  analyzeBtn.textContent = "Analyze Mail Box";
+  latestAnalyticsResult = null;
+  hideResultSections();
+  setStatusMessage(EMPTY_INBOX_MESSAGE, { isEmpty: true });
+}
+
+function normalizeFailureMessage(rawMessage) {
+  const message = String(rawMessage || "").toLowerCase();
+  const isLikelyNetworkFailure =
+    message.includes("network") ||
+    message.includes("failed to fetch") ||
+    message.includes("timeout") ||
+    message.includes("request timeout") ||
+    message.includes("gmail api error");
+  const isLikelyAuthFailure =
+    message.includes("auth") ||
+    message.includes("oauth") ||
+    message.includes("token") ||
+    message.includes("401") ||
+    message.includes("invalid_grant") ||
+    message.includes("reconnect gmail");
+
+  if (isLikelyAuthFailure || isLikelyNetworkFailure) {
+    return AUTH_FAILURE_MESSAGE;
+  }
+
+  return AUTH_FAILURE_MESSAGE;
+}
+
+async function clearStoredResults() {
+  await setStorageValues({
+    analyticsResult: null,
+    normalizedEmails: [],
+    [ANALYSIS_JOB_STATE_KEY]: {
+      status: "idle",
+      result: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    },
+    [SCAN_PROGRESS_STATE_KEY]: {
+      scanStatus: "idle",
+      nextPageToken: null,
+      processedCount: 0,
+      scanStartTime: null
+    }
+  });
 }
 
 function escapeHtml(value) {
@@ -368,6 +500,20 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
   analyticsContainerEl.hidden = false;
 }
 
+function showResultsState(analyticsResult, lastScanTimestamp) {
+  latestAnalyticsResult = analyticsResult;
+  setAnalyzing(false);
+  analyzeBtn.disabled = false;
+  analyzeBtn.textContent = "Analyze Mail Box";
+  setStatusMessage("");
+  renderDataScopeBanner(analyticsResult, lastScanTimestamp);
+  renderDashboard(analyticsResult, lastScanTimestamp);
+  if (viewActionsBtn) {
+    viewActionsBtn.hidden = false;
+    viewActionsBtn.disabled = false;
+  }
+}
+
 function stopJobStatePolling() {
   if (jobStatePollTimer != null) {
     clearInterval(jobStatePollTimer);
@@ -388,11 +534,30 @@ function startJobStatePolling() {
 }
 
 async function pollAnalysisJobState() {
-  const stored = await getStorageValues([ANALYSIS_JOB_STATE_KEY, SCAN_PROGRESS_STATE_KEY, "lastScanTimestamp"]);
+  const stored = await getStorageValues([
+    ANALYSIS_JOB_STATE_KEY,
+    SCAN_PROGRESS_STATE_KEY,
+    "lastScanTimestamp",
+    "normalizedEmails"
+  ]);
   const jobState = stored?.[ANALYSIS_JOB_STATE_KEY] || {};
   const scanProgress = stored?.[SCAN_PROGRESS_STATE_KEY] || {};
   const status = typeof jobState?.status === "string" ? jobState.status : "idle";
   const scanStatus = typeof scanProgress?.scanStatus === "string" ? scanProgress.scanStatus : "idle";
+  const normalizedEmails = Array.isArray(stored?.normalizedEmails) ? stored.normalizedEmails : [];
+  const processedCount = Number(scanProgress?.processedCount);
+
+  if (status === "error") {
+    stopJobStatePolling();
+    const message = typeof jobState?.error === "string" ? jobState.error : "Analysis failed.";
+    setErrorState(message);
+    return;
+  }
+
+  if (status === "timeout" || scanStatus === "timeout") {
+    setErrorState("Scan exceeded time limit.");
+    return;
+  }
 
   if (scanStatus === "running" || status === "running") {
     if (!isAnalyzing) {
@@ -413,27 +578,12 @@ async function pollAnalysisJobState() {
       throw new Error("Analysis completed but no result was stored.");
     }
 
-    latestAnalyticsResult = analyticsResult;
-    setAnalyzing(false);
-    analyzeBtn.disabled = false;
-    statusEl.classList.remove("error");
-    statusEl.textContent = "Analysis complete";
-    renderDataScopeBanner(analyticsResult, lastScanTimestamp);
-    renderDashboard(analyticsResult, lastScanTimestamp);
-    if (viewActionsBtn) {
-      viewActionsBtn.disabled = false;
+    if (isEmptyAnalysisState({ analyticsResult, normalizedEmails, processedCount })) {
+      showEmptyState();
+      return;
     }
-    analyzeBtn.textContent = "Analyze Mail Box";
-    return;
-  }
 
-  if (status === "timeout" || scanStatus === "timeout") {
-    stopJobStatePolling();
-    setAnalyzing(false);
-    analyzeBtn.disabled = false;
-    analyzeBtn.textContent = "Analyze Mail Box";
-    statusEl.classList.add("error");
-    statusEl.textContent = "Scan exceeded time limit.";
+    showResultsState(analyticsResult, lastScanTimestamp);
     return;
   }
 
@@ -442,16 +592,7 @@ async function pollAnalysisJobState() {
     setAnalyzing(false);
     analyzeBtn.disabled = false;
     analyzeBtn.textContent = "Analyze Mail Box";
-    statusEl.classList.remove("error");
-    statusEl.textContent = "Scan stopped.";
-    return;
-  }
-
-  if (status === "error") {
-    stopJobStatePolling();
-    const message = typeof jobState?.error === "string" ? jobState.error : "Analysis failed.";
-    setErrorState(message);
-    analyzeBtn.textContent = "Analyze Mail Box";
+    setStatusMessage("Scan stopped.");
     return;
   }
 
@@ -509,44 +650,59 @@ function setAnalyzing(value) {
 }
 
 export function setLoadingState() {
+  latestAnalyticsResult = null;
   setAnalyzing(true);
   analyzeBtn.disabled = false;
   analyzeBtn.textContent = "Stop Scan";
-  statusEl.classList.remove("error");
-  statusEl.textContent = "";
+  hideResultSections();
+  setStatusMessage("");
 }
 
 function setErrorState(message) {
+  stopJobStatePolling();
   setAnalyzing(false);
   analyzeBtn.disabled = false;
-  statusEl.classList.add("error");
-  statusEl.textContent = message || "Analysis failed.";
+  analyzeBtn.textContent = "Analyze Mail Box";
+  latestAnalyticsResult = null;
+  hideResultSections();
+  setStatusMessage(normalizeFailureMessage(message || "Analysis failed."), { isError: true });
 }
 
 export async function loadExistingData() {
   const stored = await getStorageValues([
     "analyticsResult",
+    "normalizedEmails",
     "lastScanTimestamp",
     ANALYSIS_JOB_STATE_KEY,
     SCAN_PROGRESS_STATE_KEY
   ]);
   const analyticsResult = stored?.analyticsResult ?? null;
+  const normalizedEmails = Array.isArray(stored?.normalizedEmails) ? stored.normalizedEmails : [];
   const lastScanTimestamp = stored?.lastScanTimestamp ?? null;
   const jobState = stored?.[ANALYSIS_JOB_STATE_KEY] || {};
   const scanProgress = stored?.[SCAN_PROGRESS_STATE_KEY] || {};
   const jobStatus = typeof jobState?.status === "string" ? jobState.status : "idle";
   const scanStatus = typeof scanProgress?.scanStatus === "string" ? scanProgress.scanStatus : "idle";
+  const processedCount = Number(scanProgress?.processedCount);
+
+  if (jobStatus === "error") {
+    setErrorState(typeof jobState?.error === "string" ? jobState.error : "Analysis failed.");
+    return;
+  }
+
+  if (jobStatus === "timeout" || scanStatus === "timeout") {
+    setErrorState("Scan exceeded time limit.");
+    return;
+  }
+
+  if (jobStatus === "complete" && isEmptyAnalysisState({ analyticsResult, normalizedEmails, processedCount })) {
+    showEmptyState();
+    return;
+  }
 
   if (scanStatus === "running" || jobStatus === "running") {
     latestAnalyticsResult = null;
     setLoadingState();
-    if (analyticsContainerEl) {
-      analyticsContainerEl.hidden = true;
-    }
-    if (viewActionsBtn) {
-      viewActionsBtn.disabled = true;
-    }
-    hideDataScopeBanner();
     startJobStatePolling();
     return;
   }
@@ -556,28 +712,17 @@ export async function loadExistingData() {
 
   if (!analyticsResult && jobStatus !== "complete") {
     latestAnalyticsResult = null;
-    updateScanUI();
-    statusEl.classList.remove("error");
-    statusEl.textContent = "No scan yet";
-    if (analyticsContainerEl) {
-      analyticsContainerEl.hidden = true;
-    }
-    if (viewActionsBtn) {
-      viewActionsBtn.disabled = true;
-    }
-    hideDataScopeBanner();
+    hideResultSections();
+    setStatusMessage("No scan yet");
     return;
   }
 
-  latestAnalyticsResult = analyticsResult;
-  updateScanUI();
-  statusEl.classList.remove("error");
-  statusEl.textContent = "Loaded latest analysis";
-  renderDataScopeBanner(analyticsResult, lastScanTimestamp);
-  renderDashboard(analyticsResult, lastScanTimestamp);
-  if (viewActionsBtn) {
-    viewActionsBtn.disabled = false;
+  if (isEmptyAnalysisState({ analyticsResult, normalizedEmails, processedCount })) {
+    showEmptyState();
+    return;
   }
+
+  showResultsState(analyticsResult, lastScanTimestamp);
 }
 
 export async function runAnalysis() {
@@ -591,22 +736,16 @@ export async function runAnalysis() {
       setAnalyzing(false);
       analyzeBtn.disabled = false;
       analyzeBtn.textContent = "Analyze Mail Box";
-      statusEl.classList.remove("error");
-      statusEl.textContent = "Scan stopped.";
+      setStatusMessage("Scan stopped.");
     }
     return;
   }
 
+  stopJobStatePolling();
   setLoadingState();
-  if (analyticsContainerEl) {
-    analyticsContainerEl.hidden = true;
-  }
-  if (viewActionsBtn) {
-    viewActionsBtn.disabled = true;
-  }
-  hideDataScopeBanner();
 
   try {
+    await clearStoredResults();
     const response = await sendRuntimeMessage({ type: START_ANALYSIS_MESSAGE });
     if (!response?.started) {
       throw new Error("Failed to start analysis job.");
@@ -629,8 +768,8 @@ export async function init() {
       setAnalyzing(false);
       analyzeBtn.disabled = false;
       analyzeBtn.textContent = "Analyze Mail Box";
-      statusEl.classList.remove("error");
-      statusEl.textContent = "Reconnecting Gmail...";
+      hideResultSections();
+      setStatusMessage("Reconnecting Gmail...");
       reconnectBtn.disabled = true;
 
       let reconnectMessageError = null;
@@ -642,11 +781,9 @@ export async function init() {
 
       try {
         await forceInteractiveReauth();
-        statusEl.classList.remove("error");
-        statusEl.textContent = "Gmail reconnected. You can start a new scan.";
+        setStatusMessage("Gmail reconnected. You can start a new scan.");
       } catch (error) {
-        statusEl.classList.add("error");
-        statusEl.textContent = "Reconnect failed. Please try again.";
+        setErrorState(error?.message || "Reconnect failed. Please try again.");
         if (reconnectMessageError) {
           console.error("Reconnect reset failed:", reconnectMessageError?.message || "Unknown error");
         }
