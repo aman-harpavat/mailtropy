@@ -1,16 +1,17 @@
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const LIST_PAGE_SIZE = 500;
-const MAX_MESSAGES = 20000;
-const BATCH_SIZE = 20;
-const BATCH_DELAY_MS = 400;
-const MAX_RETRIES = 3;
-const BACKOFF_BASE_MS = 500;
-const REQUEST_TIMEOUT_MS = 15000;
+const MAX_MESSAGES = 50000;
+const CONCURRENT_REQUESTS = 50;
+const INITIAL_CONCURRENCY = 30;
+const MIN_CONCURRENCY = 10;
+const MAX_RETRIES = 5;
+const BACKOFF_BASE_MS = 300;
+const REQUEST_TIMEOUT_MS = 10000;
 const GLOBAL_SCAN_TIMEOUT_MS = 30 * 60 * 1000;
+const MAX_BACKOFF_MS = 30000;
+const MAX_RETRY_AFTER_MS = 120000;
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+let quotaBackoffUntil = 0;
 
 function createError(message, code) {
   const error = new Error(message);
@@ -28,21 +29,116 @@ function throwIfAborted(signal) {
   }
 }
 
-function fetchWithTimeout(url, options, timeout = REQUEST_TIMEOUT_MS, fetchImpl = fetch) {
-  let timerId;
+function getRetryAfterMs(headers) {
+  const value = headers?.get?.("retry-after");
+  if (!value) {
+    return null;
+  }
 
-  return Promise.race([
-    fetchImpl(url, options),
-    new Promise((_, reject) => {
-      timerId = setTimeout(() => {
-        reject(createError("Request timeout", "REQUEST_TIMEOUT"));
-      }, timeout);
-    })
-  ]).finally(() => {
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+
+  const asDate = Date.parse(value);
+  if (Number.isFinite(asDate)) {
+    return Math.min(Math.max(0, asDate - Date.now()), MAX_RETRY_AFTER_MS);
+  }
+
+  return null;
+}
+
+async function sleepWithSignal(ms, signal) {
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return;
+  }
+
+  await new Promise((resolve, reject) => {
+    const timerId = setTimeout(() => {
+      if (signal) {
+        signal.removeEventListener("abort", onAbort);
+      }
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timerId);
+      reject(createError("Scan aborted", "SCAN_ABORTED"));
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  });
+}
+
+function setQuotaBackoff(delayMs) {
+  if (!Number.isFinite(delayMs) || delayMs <= 0) {
+    return;
+  }
+  quotaBackoffUntil = Math.max(quotaBackoffUntil, Date.now() + delayMs);
+}
+
+async function waitForQuotaCooldown(signal, scanStartTime) {
+  for (;;) {
+    throwIfAborted(signal);
+    if (Number.isFinite(scanStartTime)) {
+      assertGlobalScanWindow(scanStartTime);
+    }
+
+    const remaining = quotaBackoffUntil - Date.now();
+    if (remaining <= 0) {
+      return;
+    }
+
+    await sleepWithSignal(Math.min(remaining, 1000), signal);
+  }
+}
+
+async function fetchWithTimeout(url, options, timeout = REQUEST_TIMEOUT_MS, fetchImpl = fetch) {
+  const timeoutController = new AbortController();
+  const upstreamSignal = options?.signal;
+  let timerId = null;
+  let timeoutTriggered = false;
+  let removeAbortListener = null;
+
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) {
+      timeoutController.abort();
+    } else {
+      const onAbort = () => timeoutController.abort();
+      upstreamSignal.addEventListener("abort", onAbort, { once: true });
+      removeAbortListener = () => upstreamSignal.removeEventListener("abort", onAbort);
+    }
+  }
+
+  timerId = setTimeout(() => {
+    timeoutTriggered = true;
+    timeoutController.abort();
+  }, timeout);
+
+  try {
+    return await fetchImpl(url, {
+      ...options,
+      signal: timeoutController.signal
+    });
+  } catch (error) {
+    if (timeoutTriggered) {
+      throw createError("Request timeout", "REQUEST_TIMEOUT");
+    }
+    throw error;
+  } finally {
     if (timerId) {
       clearTimeout(timerId);
     }
-  });
+    if (typeof removeAbortListener === "function") {
+      removeAbortListener();
+    }
+  }
 }
 
 function isQuotaRelated403(errorPayload) {
@@ -59,11 +155,17 @@ function isQuotaRelated403(errorPayload) {
   );
 }
 
-async function gmailGet(url, accessToken, { fetchImpl = fetch, signal } = {}) {
-  let timeoutRetryCount = 0;
-
+async function gmailGet(
+  url,
+  accessToken,
+  { fetchImpl = fetch, signal, scanStartTime, onQuotaRetry } = {}
+) {
   for (let retry = 0; ; retry += 1) {
     throwIfAborted(signal);
+    if (Number.isFinite(scanStartTime)) {
+      assertGlobalScanWindow(scanStartTime);
+    }
+    await waitForQuotaCooldown(signal, scanStartTime);
 
     let response;
     try {
@@ -84,14 +186,23 @@ async function gmailGet(url, accessToken, { fetchImpl = fetch, signal } = {}) {
       if (isAbortError(error)) {
         throw createError("Scan aborted", "SCAN_ABORTED");
       }
-      if (error?.code === "REQUEST_TIMEOUT") {
-        if (timeoutRetryCount < 1) {
-          timeoutRetryCount += 1;
-          continue;
-        }
+      const isTimeout = error?.code === "REQUEST_TIMEOUT";
+      const isNetworkError =
+        error?.name === "TypeError" ||
+        String(error?.message || "").toLowerCase().includes("network");
+      const isRetryableFailure = isTimeout || isNetworkError;
+      const canRetryFailure = isRetryableFailure && retry < MAX_RETRIES;
+
+      if (canRetryFailure) {
+        const jitter = Math.floor(Math.random() * 201);
+        const delay = Math.min(BACKOFF_BASE_MS * (2 ** retry), MAX_BACKOFF_MS) + jitter;
+        await sleepWithSignal(delay, signal);
+        continue;
+      }
+      if (isTimeout) {
         throw createError("Request timeout", "REQUEST_TIMEOUT");
       }
-      throw error;
+      throw new Error(error?.message || "Network error while calling Gmail API");
     }
 
     const text = await response.text();
@@ -108,15 +219,32 @@ async function gmailGet(url, accessToken, { fetchImpl = fetch, signal } = {}) {
       throw createError("Authentication expired. Please re-authenticate.", "TOKEN_EXPIRED");
     }
 
-    const retryable = response.status === 429 || (response.status === 403 && isQuotaRelated403(payload));
+    const isQuotaRetry = response.status === 429 || (response.status === 403 && isQuotaRelated403(payload));
+    const retryable =
+      isQuotaRetry ||
+      response.status >= 500 ||
+      response.status === 408;
 
     if (response.ok) {
       return payload;
     }
 
-    if (retryable && retry < MAX_RETRIES) {
-      const delay = BACKOFF_BASE_MS * (2 ** retry);
-      await sleep(delay);
+    const canRetry = retryable && (isQuotaRetry || retry < MAX_RETRIES);
+
+    if (canRetry) {
+      const retryAfterMs = getRetryAfterMs(response.headers);
+      const jitter = Math.floor(Math.random() * 201);
+      const exponentialBackoffMs = Math.min(BACKOFF_BASE_MS * (2 ** retry), MAX_BACKOFF_MS);
+      const delay = Math.max(retryAfterMs || 0, exponentialBackoffMs) + jitter;
+
+      if (isQuotaRetry) {
+        if (typeof onQuotaRetry === "function") {
+          onQuotaRetry();
+        }
+        setQuotaBackoff(delay);
+      }
+
+      await sleepWithSignal(delay, signal);
       continue;
     }
 
@@ -138,17 +266,10 @@ function buildMetadataUrl(messageId) {
   const url = new URL(`${GMAIL_MESSAGES_URL}/${messageId}`);
   url.searchParams.set("format", "metadata");
   url.searchParams.append("metadataHeaders", "From");
+  url.searchParams.append("metadataHeaders", "Date");
   url.searchParams.append("metadataHeaders", "List-Unsubscribe");
   url.searchParams.set("fields", "id,threadId,internalDate,labelIds,payload/headers");
   return url.toString();
-}
-
-function chunk(items, size) {
-  const result = [];
-  for (let i = 0; i < items.length; i += size) {
-    result.push(items.slice(i, i + size));
-  }
-  return result;
 }
 
 function getHeaders(rawMessage) {
@@ -260,7 +381,7 @@ export function normalizeBatch(rawMessages) {
 }
 
 /**
- * Fetches raw Gmail metadata responses for up to 20,000 unique messages.
+ * Fetches and normalizes Gmail metadata responses for up to MAX_MESSAGES unique messages.
  * @param {string} accessToken
  * @param {{
  *   fetchImpl?: typeof fetch,
@@ -268,7 +389,7 @@ export function normalizeBatch(rawMessages) {
  *   scanStartTime?: number | null,
  *   onProgress?: (progress: { nextPageToken: string | null, processedCount: number, scanStartTime: number }) => Promise<void> | void
  * }} options
- * @returns {Promise<{ rawMessages: object[], nextPageToken: string | null, processedCount: number }>}
+ * @returns {Promise<{ normalizedEmails: NormalizedEmail[], nextPageToken: string | null, processedCount: number }>}
  */
 export async function fetchGmailMetadata(
   accessToken,
@@ -289,65 +410,89 @@ export async function fetchGmailMetadata(
       : Date.now();
   let nextPageToken = null;
   const processedIds = new Set();
-  const results = [];
+  const normalizedEmails = [];
   let processedCount = 0;
+  let dynamicConcurrency = Math.min(CONCURRENT_REQUESTS, Math.max(MIN_CONCURRENCY, INITIAL_CONCURRENCY));
 
   do {
     throwIfAborted(signal);
     assertGlobalScanWindow(scanStartTime);
 
-    const page = await gmailGet(buildListUrl(nextPageToken), accessToken, { fetchImpl, signal });
+    let pageQuotaRetryCount = 0;
+    const trackQuotaRetry = () => {
+      pageQuotaRetryCount += 1;
+    };
+
+    const page = await gmailGet(buildListUrl(nextPageToken), accessToken, {
+      fetchImpl,
+      signal,
+      scanStartTime,
+      onQuotaRetry: trackQuotaRetry
+    });
     const messages = Array.isArray(page?.messages) ? page.messages : [];
-    const ids = [];
+    const queue = [];
+    const remainingSlots = Math.max(0, MAX_MESSAGES - processedCount);
 
     for (const message of messages) {
-      if (processedCount >= MAX_MESSAGES) {
+      if (queue.length >= remainingSlots) {
         break;
       }
       if (typeof message?.id === "string" && !processedIds.has(message.id)) {
-        ids.push(message.id);
+        queue.push(message.id);
       }
     }
 
-    const batches = chunk(ids, BATCH_SIZE);
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-      throwIfAborted(signal);
-      assertGlobalScanWindow(scanStartTime);
+    const workerCount = Math.min(dynamicConcurrency, queue.length);
 
-      const batch = batches[batchIndex];
-      const batchResults = await Promise.all(
-        batch.map(async (id) => {
-          throwIfAborted(signal);
-          if (processedIds.has(id)) {
-            return null;
-          }
-          const metadata = await gmailGet(buildMetadataUrl(id), accessToken, { fetchImpl, signal });
-          processedIds.add(id);
-          return metadata;
-        })
-      );
+    async function worker() {
+      while (queue.length > 0) {
+        throwIfAborted(signal);
+        assertGlobalScanWindow(scanStartTime);
 
-      results.push(...batchResults.filter(Boolean));
-      processedCount = results.length;
+        if (processedCount >= MAX_MESSAGES) {
+          return;
+        }
 
-      if (typeof onProgress === "function") {
-        await onProgress({
-          nextPageToken: typeof page?.nextPageToken === "string" ? page.nextPageToken : null,
-          processedCount,
-          scanStartTime
+        const id = queue.pop();
+        if (!id || processedIds.has(id)) {
+          continue;
+        }
+
+        const metadata = await gmailGet(buildMetadataUrl(id), accessToken, {
+          fetchImpl,
+          signal,
+          scanStartTime,
+          onQuotaRetry: trackQuotaRetry
         });
+        processedIds.add(id);
+        normalizedEmails.push(normalizeMessage(metadata));
+        processedCount += 1;
       }
+    }
 
-      if (batchIndex < batches.length - 1) {
-        await sleep(BATCH_DELAY_MS);
-      }
+    if (workerCount > 0) {
+      await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    }
+
+    if (typeof onProgress === "function") {
+      await onProgress({
+        nextPageToken: typeof page?.nextPageToken === "string" ? page.nextPageToken : null,
+        processedCount,
+        scanStartTime
+      });
+    }
+
+    if (pageQuotaRetryCount > 0) {
+      dynamicConcurrency = Math.max(MIN_CONCURRENCY, Math.floor(dynamicConcurrency * 0.75));
+    } else {
+      dynamicConcurrency = Math.min(CONCURRENT_REQUESTS, dynamicConcurrency + 1);
     }
 
     nextPageToken = typeof page?.nextPageToken === "string" ? page.nextPageToken : null;
   } while (nextPageToken && processedCount < MAX_MESSAGES);
 
   return {
-    rawMessages: results,
+    normalizedEmails,
     nextPageToken: null,
     processedCount
   };

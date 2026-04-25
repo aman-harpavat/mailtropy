@@ -1,4 +1,4 @@
-import { fetchGmailMetadata, normalizeBatch } from "./gmailClient.js";
+import { fetchGmailMetadata } from "./gmailClient.js";
 import { analyzeEmails } from "./analytics.js";
 import {
   getScanProgressState,
@@ -101,7 +101,7 @@ async function runAnalyzePipeline({ token, signal, scanStartTime, onProgress }) 
   });
 
   try {
-    const normalizedEmails = normalizeBatch(fetchResult.rawMessages);
+    const normalizedEmails = Array.isArray(fetchResult?.normalizedEmails) ? fetchResult.normalizedEmails : [];
     const analyticsResult = analyzeEmails(normalizedEmails);
     const nextScanTimestamp = Date.now();
 

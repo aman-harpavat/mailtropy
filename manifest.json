@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key" : "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3NbCkqFiW4rTX+X+QLR3Rkw6GU3b6MskSMzlnf3pHTNSbKh/hfPh37HmfqDkY3ZMuvD7/DN4K0QIHpevA2Yyt8F+2NXk9jGw7JGBO8eu+s3FTtAHvhh4slL4TrWJnlaslOBgL3j1q35QIE8SwiL1FncaqVoknKa2EjG3uClA1P0hpvBUr3Gra0faqohhmO/3/LLL6W1Vk6Kc2PoBz2NOYY2IyieMSrlByGZyuJ23farvtaLYUpE4/8Sw2z5sR0JdUUitg5vy8TTSruh03tX3Q0niezh+W2/GXVGw2HtEaY8DBKbeTjpw4pRZ6vdwU1Mu4pzfiyDO3Q9HZkP4tDMd0wIDAQAB",
   "name": "Mailtropy",
   "version": "1.0.1",
   "description": "Privacy-first Gmail insights with read-only metadata analytics.",
