@@ -12,7 +12,12 @@ const reconnectBtn = document.getElementById("reconnectBtn");
 let view = "analysis";
 let latestAnalyticsResult = null;
 let jobStatePollTimer = null;
-let isAnalyzing = false;
+const STATE_IDLE = "idle";
+const STATE_AUTHENTICATING = "authenticating";
+const STATE_ANALYZING = "analyzing";
+const STATE_ERROR = "error";
+let currentState = STATE_IDLE;
+let pendingScan = false;
 let copyFeedbackTimerId = null;
 let copyFeedbackButton = null;
 const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
@@ -36,14 +41,10 @@ function sendRuntimeMessage(message) {
 }
 
 function getAuthToken(interactive) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     chrome.identity.getAuthToken({ interactive }, (token) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (!token) {
-        reject(new Error("No OAuth token returned."));
+      if (chrome.runtime.lastError || !token) {
+        resolve(null);
         return;
       }
       resolve(token);
@@ -52,11 +53,11 @@ function getAuthToken(interactive) {
 }
 
 async function getAuthTokenWithFallback() {
-  try {
-    return await getAuthToken(false);
-  } catch (_error) {
-    return getAuthToken(true);
+  const silentToken = await getAuthToken(false);
+  if (silentToken) {
+    return silentToken;
   }
+  return getAuthToken(true);
 }
 
 function removeCachedAuthToken(token) {
@@ -103,6 +104,54 @@ function setStorageValues(items) {
       resolve();
     });
   });
+}
+
+function isScanning() {
+  return currentState === STATE_ANALYZING;
+}
+
+function setAppState(nextState) {
+  if (currentState === nextState) {
+    return;
+  }
+
+  currentState = nextState;
+
+  if (currentState === STATE_IDLE) {
+    analyzeBtn.disabled = false;
+    analyzeBtn.textContent = "Analyze Mail Box";
+    setStatusMessage("");
+    updateLoadingState();
+    updateScanUI();
+    return;
+  }
+
+  if (currentState === STATE_AUTHENTICATING) {
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = "Analyze Mail Box";
+    hideResultSections();
+    setStatusMessage("Connecting to Gmail...");
+    updateLoadingState();
+    updateScanUI();
+    return;
+  }
+
+  if (currentState === STATE_ANALYZING) {
+    analyzeBtn.disabled = false;
+    analyzeBtn.textContent = "Stop Scan";
+    hideResultSections();
+    setStatusMessage("");
+    updateLoadingState();
+    updateScanUI();
+    return;
+  }
+
+  if (currentState === STATE_ERROR) {
+    analyzeBtn.disabled = false;
+    analyzeBtn.textContent = "Analyze Mail Box";
+    updateLoadingState();
+    updateScanUI();
+  }
 }
 
 function normalizeForDashboard(analyticsResult) {
@@ -213,9 +262,7 @@ function isEmptyAnalysisState({ analyticsResult, normalizedEmails, processedCoun
 
 function showEmptyState() {
   stopJobStatePolling();
-  setAnalyzing(false);
-  analyzeBtn.disabled = false;
-  analyzeBtn.textContent = "Analyze Mail Box";
+  setAppState(STATE_IDLE);
   latestAnalyticsResult = null;
   hideResultSections();
   setStatusMessage(EMPTY_INBOX_MESSAGE, { isEmpty: true });
@@ -618,9 +665,7 @@ function renderDashboard(analyticsResult, lastScanTimestamp) {
 
 function showResultsState(analyticsResult, lastScanTimestamp) {
   latestAnalyticsResult = analyticsResult;
-  setAnalyzing(false);
-  analyzeBtn.disabled = false;
-  analyzeBtn.textContent = "Analyze Mail Box";
+  setAppState(STATE_IDLE);
   setStatusMessage("");
   renderDataScopeBanner(analyticsResult, lastScanTimestamp);
   renderDashboard(analyticsResult, lastScanTimestamp);
@@ -676,7 +721,7 @@ async function pollAnalysisJobState() {
   }
 
   if (scanStatus === "running" || status === "running") {
-    if (!isAnalyzing) {
+    if (currentState !== STATE_ANALYZING) {
       setLoadingState();
     }
     analyzeBtn.textContent = "Stop Scan";
@@ -705,15 +750,12 @@ async function pollAnalysisJobState() {
 
   if (status === "stopped" || scanStatus === "stopped") {
     stopJobStatePolling();
-    setAnalyzing(false);
-    analyzeBtn.disabled = false;
-    analyzeBtn.textContent = "Analyze Mail Box";
+    setAppState(STATE_IDLE);
     setStatusMessage("Scan stopped.");
     return;
   }
 
-  setAnalyzing(false);
-  analyzeBtn.textContent = "Analyze Mail Box";
+  setAppState(STATE_IDLE);
   stopJobStatePolling();
 }
 
@@ -722,7 +764,7 @@ function updateScanUI() {
     return;
   }
 
-  const shouldShow = !isAnalyzing && latestAnalyticsResult != null;
+  const shouldShow = currentState !== STATE_ANALYZING && currentState !== STATE_AUTHENTICATING && latestAnalyticsResult != null;
 
   if (!shouldShow) {
     hideDataScopeBanner();
@@ -736,7 +778,7 @@ function updateLoadingState() {
     return;
   }
 
-  if (isAnalyzing) {
+  if (currentState === STATE_ANALYZING) {
     if (!loadingPlaceholderEl.hasChildNodes()) {
       loadingPlaceholderEl.innerHTML = `
         <div id="loadingState" class="loading-state" aria-live="polite" aria-busy="true">
@@ -756,31 +798,23 @@ function updateLoadingState() {
 }
 
 function setAnalyzing(value) {
-  const nextState = value === true;
-  if (isAnalyzing === nextState) {
+  const nextState = value === true ? STATE_ANALYZING : STATE_IDLE;
+  if (currentState === nextState) {
     return;
   }
-  isAnalyzing = nextState;
-  updateLoadingState();
-  updateScanUI();
+  setAppState(nextState);
 }
 
 export function setLoadingState() {
   latestAnalyticsResult = null;
-  setAnalyzing(true);
-  analyzeBtn.disabled = false;
-  analyzeBtn.textContent = "Stop Scan";
-  hideResultSections();
-  setStatusMessage("");
+  setAppState(STATE_ANALYZING);
 }
 
 function setErrorState(message) {
   stopJobStatePolling();
-  setAnalyzing(false);
-  analyzeBtn.disabled = false;
-  analyzeBtn.textContent = "Analyze Mail Box";
   latestAnalyticsResult = null;
   hideResultSections();
+  setAppState(STATE_ERROR);
   setStatusMessage(normalizeFailureMessage(message || "Analysis failed."), { isError: true });
 }
 
@@ -823,8 +857,7 @@ export async function loadExistingData() {
     return;
   }
 
-  setAnalyzing(false);
-  analyzeBtn.textContent = "Analyze Mail Box";
+  setAppState(STATE_IDLE);
 
   if (!analyticsResult && jobStatus !== "complete") {
     latestAnalyticsResult = null;
@@ -842,25 +875,40 @@ export async function loadExistingData() {
 }
 
 export async function runAnalysis() {
-  if (isAnalyzing) {
+  if (currentState === STATE_ANALYZING) {
     try {
       await sendRuntimeMessage({ type: CANCEL_ANALYSIS_MESSAGE });
     } catch (error) {
       console.error("Failed to stop scan:", error?.message || "Unknown error");
     } finally {
       stopJobStatePolling();
-      setAnalyzing(false);
-      analyzeBtn.disabled = false;
-      analyzeBtn.textContent = "Analyze Mail Box";
+      setAppState(STATE_IDLE);
       setStatusMessage("Scan stopped.");
     }
     return;
   }
 
   stopJobStatePolling();
+  pendingScan = true;
 
   try {
-    await getAuthTokenWithFallback();
+    let token = await getAuthToken(false);
+    if (!token) {
+      setAppState(STATE_AUTHENTICATING);
+      token = await getAuthToken(true);
+    }
+
+    if (!token) {
+      pendingScan = false;
+      setAppState(STATE_IDLE);
+      return;
+    }
+
+    if (!pendingScan) {
+      setAppState(STATE_IDLE);
+      return;
+    }
+
     await clearStoredResults();
     setLoadingState();
     const response = await sendRuntimeMessage({ type: START_ANALYSIS_MESSAGE });
@@ -872,6 +920,8 @@ export async function runAnalysis() {
     stopJobStatePolling();
     setErrorState(error?.message || "Analysis failed.");
     console.error("Failed to start analysis:", error?.message || "Unknown error");
+  } finally {
+    pendingScan = false;
   }
 }
 
@@ -888,7 +938,7 @@ export async function init() {
       setView("analysis");
       window.scrollTo(0, 0);
       stopJobStatePolling();
-      setAnalyzing(false);
+      setAppState(STATE_IDLE);
       analyzeBtn.disabled = false;
       analyzeBtn.textContent = "Analyze Mail Box";
       hideResultSections();
