@@ -266,7 +266,6 @@ function buildMetadataUrl(messageId) {
   const url = new URL(`${GMAIL_MESSAGES_URL}/${messageId}`);
   url.searchParams.set("format", "metadata");
   url.searchParams.append("metadataHeaders", "From");
-  url.searchParams.append("metadataHeaders", "Date");
   url.searchParams.append("metadataHeaders", "List-Unsubscribe");
   url.searchParams.set("fields", "id,threadId,internalDate,labelIds,payload/headers");
   return url.toString();
