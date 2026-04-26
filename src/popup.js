@@ -17,7 +17,6 @@ const STATE_AUTHENTICATING = "authenticating";
 const STATE_ANALYZING = "analyzing";
 const STATE_ERROR = "error";
 let currentState = STATE_IDLE;
-let pendingScan = false;
 let copyFeedbackTimerId = null;
 let copyFeedbackButton = null;
 const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
@@ -50,14 +49,6 @@ function getAuthToken(interactive) {
       resolve(token);
     });
   });
-}
-
-async function getAuthTokenWithFallback() {
-  const silentToken = await getAuthToken(false);
-  if (silentToken) {
-    return silentToken;
-  }
-  return getAuthToken(true);
 }
 
 function removeCachedAuthToken(token) {
@@ -874,7 +865,7 @@ export async function loadExistingData() {
   showResultsState(analyticsResult, lastScanTimestamp);
 }
 
-export async function runAnalysis() {
+export async function startAnalyzeFlow() {
   if (currentState === STATE_ANALYZING) {
     try {
       await sendRuntimeMessage({ type: CANCEL_ANALYSIS_MESSAGE });
@@ -889,44 +880,31 @@ export async function runAnalysis() {
   }
 
   stopJobStatePolling();
-  pendingScan = true;
+  setAppState(STATE_AUTHENTICATING);
 
   try {
-    let token = await getAuthToken(false);
-    if (!token) {
-      setAppState(STATE_AUTHENTICATING);
-      token = await getAuthToken(true);
-    }
-
-    if (!token) {
-      pendingScan = false;
-      setAppState(STATE_IDLE);
-      return;
-    }
-
-    if (!pendingScan) {
-      setAppState(STATE_IDLE);
-      return;
-    }
-
     await clearStoredResults();
-    setLoadingState();
     const response = await sendRuntimeMessage({ type: START_ANALYSIS_MESSAGE });
+
     if (!response?.started) {
-      throw new Error(response?.error || "Failed to start analysis job.");
+      throw new Error(
+        typeof response?.error === "string" && response.error
+          ? response.error
+          : "Authentication failed. Please reconnect Gmail."
+      );
     }
+
+    setLoadingState();
     startJobStatePolling();
   } catch (error) {
     stopJobStatePolling();
     setErrorState(error?.message || "Analysis failed.");
     console.error("Failed to start analysis:", error?.message || "Unknown error");
-  } finally {
-    pendingScan = false;
   }
 }
 
 export async function init() {
-  analyzeBtn.addEventListener("click", runAnalysis);
+  analyzeBtn.addEventListener("click", startAnalyzeFlow);
   if (analyticsContainerEl) {
     analyticsContainerEl.addEventListener("click", handleCopyButtonClick);
   }

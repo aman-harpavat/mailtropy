@@ -12,6 +12,8 @@ import {
 const START_ANALYSIS_MESSAGE = "START_ANALYSIS";
 const CANCEL_ANALYSIS_MESSAGE = "CANCEL_ANALYSIS";
 const RECONNECT_GMAIL_MESSAGE = "RECONNECT_GMAIL";
+const AUTH_EXPIRED_ERROR = "Authentication expired. Please reconnect Gmail.";
+const AUTHENTICATION_FAILED_ERROR = "Authentication failed. Please reconnect Gmail.";
 
 let activeScanController = null;
 let activeScanPromise = null;
@@ -37,7 +39,11 @@ async function getTokenWithFallback() {
   try {
     return await getToken(false);
   } catch (_error) {
-    return getToken(true);
+    try {
+      return await getToken(true);
+    } catch (_error2) {
+      return null;
+    }
   }
 }
 
@@ -66,6 +72,22 @@ function isInvalidGrantError(error) {
   return message.includes("invalid_grant");
 }
 
+function createCodedError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isTokenAuthError(error) {
+  return error?.code === "TOKEN_EXPIRED" || isInvalidGrantError(error);
+}
+
+async function tryRecoverAuthToken(token) {
+  await clearAuthToken(token);
+  await clearStoredAuthState();
+  return getTokenWithFallback();
+}
+
 async function triggerReauthFlow() {
   try {
     await getTokenWithFallback();
@@ -88,19 +110,29 @@ async function initializeStaleRunningState() {
 
 async function runAnalyzePipeline({ token, signal, scanStartTime, onProgress }) {
   activeAccessToken = token;
-  const fetchResult = await fetchGmailMetadata(token, {
-    signal,
-    scanStartTime,
-    onProgress
-  }).catch(async (error) => {
-    if (error?.code === "TOKEN_EXPIRED") {
-      await clearAuthToken(token);
-      await clearStoredAuthState();
-    }
-    throw error;
-  });
-
   try {
+    const fetchResult = await fetchGmailMetadata(token, {
+      signal,
+      scanStartTime,
+      onProgress
+    }).catch(async (error) => {
+      if (!isTokenAuthError(error)) {
+        throw error;
+      }
+
+      const recoveredToken = await tryRecoverAuthToken(token);
+      if (!recoveredToken) {
+        throw createCodedError(AUTH_EXPIRED_ERROR, "TOKEN_EXPIRED");
+      }
+      activeAccessToken = recoveredToken;
+
+      return fetchGmailMetadata(recoveredToken, {
+        signal,
+        scanStartTime,
+        onProgress
+      });
+    });
+
     const normalizedEmails = Array.isArray(fetchResult?.normalizedEmails) ? fetchResult.normalizedEmails : [];
     const analyticsResult = analyzeEmails(normalizedEmails);
     const nextScanTimestamp = Date.now();
@@ -123,9 +155,13 @@ async function runAnalysisJob(prevalidatedToken = null) {
     return activeScanPromise;
   }
 
+  if (!prevalidatedToken) {
+    throw new Error("Missing OAuth token for analysis.");
+  }
+
   activeScanController = new AbortController();
   const scanStartTime = Date.now();
-  const token = prevalidatedToken || (await getTokenWithFallback());
+  const token = prevalidatedToken;
 
   await saveScanProgressState({
     scanStatus: "running",
@@ -220,7 +256,7 @@ async function runAnalysisJob(prevalidatedToken = null) {
         await saveAnalysisJobState({
           status: "stopped",
           result: null,
-          error: "Authentication expired. Please reconnect Gmail.",
+          error: AUTH_EXPIRED_ERROR,
           startedAt: scanStartTime,
           finishedAt: Date.now()
         });
@@ -240,7 +276,7 @@ async function runAnalysisJob(prevalidatedToken = null) {
         await saveAnalysisJobState({
           status: "stopped",
           result: null,
-          error: "Authentication expired. Please reconnect Gmail.",
+          error: AUTH_EXPIRED_ERROR,
           startedAt: scanStartTime,
           finishedAt: Date.now()
         });
@@ -295,7 +331,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === START_ANALYSIS_MESSAGE) {
     (async () => {
       try {
-        const token = await getTokenWithFallback();
+        const providedToken = typeof message.token === "string" && message.token ? message.token : null;
+        const token = providedToken || (await getTokenWithFallback());
+        if (!token) {
+          await Promise.all([
+            saveScanProgressState({
+              scanStatus: "stopped",
+              nextPageToken: null,
+              processedCount: 0,
+              scanStartTime: null
+            }),
+            saveAnalysisJobState({
+              status: "error",
+              result: null,
+              error: AUTHENTICATION_FAILED_ERROR,
+              startedAt: null,
+              finishedAt: Date.now()
+            })
+          ]);
+          sendResponse({ started: false, error: AUTHENTICATION_FAILED_ERROR });
+          return;
+        }
+
         runAnalysisJob(token).catch(async (error) => {
           await Promise.all([
             saveScanProgressState({
