@@ -1,0 +1,21 @@
+# macOS metadata
+.DS_Store
+._*
+__MACOSX/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+.aws/
+
+# Generated files
+*.zip
+dist/
+__pycache__/
+node_modules/
