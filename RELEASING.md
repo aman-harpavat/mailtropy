@@ -109,6 +109,7 @@ Changes:
 - Reliable reconnect status: success requires an OAuth token.
 - Consistent Gmail OAuth identity when loading the source folder for development.
 - Narrower `gmail.metadata` permission, matching the metadata-only scan.
+- Gmail API host permission aligned with `https://gmail.googleapis.com/*`.
 
 The test ZIP includes the existing extension public key. The upload ZIP omits
 that key. Both include only runtime files from the build allowlist; plans,
@@ -123,7 +124,7 @@ checks for any later edits before uploading.
 
 ## Metadata permission test before uploading
 
-Version remains 1.0.3. The manifest now requests only
+The manifest requests only
 `https://www.googleapis.com/auth/gmail.metadata`; the bundled privacy policy
 has been updated to match. No public key, client ID, UI, or analytics changes
 are needed. This scope still requires Google OAuth verification.
@@ -151,3 +152,23 @@ The deterministic tests enforce these request restrictions and declared scope,
 but cannot authenticate with a real Google account. Upload only after the
 fresh-consent Gmail scan succeeds. Both v1.0.3 ZIPs were rebuilt for this scope;
 any previously downloaded v1.0.3 ZIP with the old scope is superseded.
+
+
+## Gmail API host permission correction
+
+The manifest now declares `https://gmail.googleapis.com/*`, matching the actual
+Gmail API requests, instead of the unused `https://www.googleapis.com/*` host.
+The OAuth scope remains `https://www.googleapis.com/auth/gmail.metadata`;
+OAuth scope identifiers must not be changed to the API host name.
+
+User testing confirmed scanning and expected results after the host correction.
+Automated checks validate the declared host, metadata scope, and request fields.
+Version remains 1.0.3 at the user's request. Both ZIPs are rebuilt from the
+tested source. The upload folder contains only the current test and release
+packages. Chrome Web Store may require a higher version when replacing a
+previously uploaded package; no version increase was made here.
+
+Upload `dist/mailtropy-v1.0.3.zip` to the existing Chrome Web Store item. If the
+prior submission is under review, cancel that review before replacing its
+package. Update the host-permission justification to name
+`https://gmail.googleapis.com/*`. OAuth verification remains a separate process.

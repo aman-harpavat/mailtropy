@@ -294,6 +294,7 @@ try {
     const publicKey = (await readFile(new URL('../scripts/extension-public-key.txt', import.meta.url), 'utf8')).trim();
     assert.equal(sourceManifest.key, publicKey, 'source uses audited test public key');
     assert.deepEqual(sourceManifest.oauth2.scopes, ['https://www.googleapis.com/auth/gmail.metadata'], 'request only metadata permission');
+    assert.deepEqual(sourceManifest.host_permissions, ['https://gmail.googleapis.com/*'], 'host permission matches actual Gmail API endpoint');
     const privacyPolicy = await readFile(new URL('../privacy.html', import.meta.url), 'utf8');
     assert.ok(privacyPolicy.includes('https://www.googleapis.com/auth/gmail.metadata'));
     assert.ok(!privacyPolicy.includes('https://www.googleapis.com/auth/gmail.readonly'));

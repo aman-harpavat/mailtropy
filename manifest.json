@@ -21,7 +21,7 @@
     "type": "module"
   },
   "permissions": ["identity", "storage"],
-  "host_permissions": ["https://www.googleapis.com/*"],
+  "host_permissions": ["https://gmail.googleapis.com/*"],
   "oauth2": {
     "client_id": "810560848692-0r40a78s1k5d30vvjjlf1i60hm2uc4i9.apps.googleusercontent.com",
     "scopes": ["https://www.googleapis.com/auth/gmail.metadata"]
