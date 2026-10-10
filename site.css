@@ -1,0 +1,52 @@
+/* Website only; reuse the extension's global design tokens. */
+.site-main {
+  max-width: calc(var(--size-app-width) * 2);
+  margin: auto;
+  padding: var(--space-21);
+  font-size: var(--font-15);
+  line-height: var(--line-height-relaxed);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
+  padding-block: var(--space-21);
+  border-bottom: var(--line-thin) solid var(--border-medium);
+}
+
+.site-main section {
+  margin-block: var(--space-21);
+}
+
+.site-main h2 {
+  font-size: var(--font-21);
+  line-height: var(--line-height-comfort);
+  font-weight: var(--font-weight-semibold);
+  margin-block: var(--space-15);
+}
+
+.site-main p {
+  color: var(--text-secondary);
+  margin-block: var(--space-15);
+}
+
+.site-main a {
+  color: var(--accent);
+  text-underline-offset: var(--outline-offset-sm);
+  overflow-wrap: anywhere;
+}
+
+.site-main a:focus-visible {
+  outline: var(--line-thick) solid var(--accent);
+  outline-offset: var(--outline-offset-sm);
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-21);
+  padding-block: var(--space-21);
+  border-top: var(--line-thin) solid var(--border-medium);
+  font-size: var(--font-13);
+}

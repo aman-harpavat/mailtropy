@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Understand what's filling your Gmail inbox. Mailtropy provides local, read-only metadata analytics for frequent senders, subscriptions, and email clutter.">
+  <title>Mailtropy — Gmail inbox insights</title>
+  <link rel="icon" href="assets/icon-48.png">
+  <link rel="stylesheet" href="src/styles.css">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <main class="site-main">
+    <header class="site-header">
+      <img class="logo-mark" src="assets/icon-128.png" alt="" width="49" height="49">
+      <h1 class="brand-title">Mailtropy</h1>
+    </header>
+
+    <section aria-labelledby="purpose">
+      <h2 id="purpose">Understand what's filling your Gmail inbox.</h2>
+      <p>Mailtropy is a free Chrome extension that helps you find frequent senders, subscription-like email, and email clutter without compromising privacy.</p>
+      <p>Start a scan to see sender frequency, domain distribution, and subscription signals. Mailtropy provides insights and guidance so you can decide what to clean up yourself in Gmail.</p>
+    </section>
+
+    <section aria-labelledby="privacy">
+      <h2 id="privacy">Read-only insights. Local processing.</h2>
+      <p>With your permission, Mailtropy uses Google OAuth and the Gmail API to read message metadata. It requests message IDs, thread IDs, timestamps, label IDs, and only the From and List-Unsubscribe headers. It does not request email bodies, subjects, snippets, or attachments.</p>
+      <p>Analysis happens in your browser. Processed metadata and results stay in local extension storage. Mailtropy does not send Gmail data to a backend, sell it, or share it with third parties.</p>
+      <p>Mailtropy does not send, modify, archive, or delete email. Subscription signals are based on the presence of a List-Unsubscribe header; you perform cleanup manually in Gmail.</p>
+      <p><a href="privacy.html">Read the Mailtropy Privacy Policy</a> for details about access, storage, retention, and your controls.</p>
+    </section>
+
+    <footer class="site-footer">
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="https://github.com/aman-harpavat/mailtropy">Source code</a>
+      <a href="mailto:amanharpavatdev@gmail.com">Contact</a>
+    </footer>
+  </main>
+</body>
+</html>
