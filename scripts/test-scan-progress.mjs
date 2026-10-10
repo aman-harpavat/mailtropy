@@ -93,21 +93,33 @@ try {
   const ids = Array.from({ length: 620 }, (_, i) => ({ id: `email-${i}` }));
   const result = await fetchGmailMetadata('fake-test-token', {
     scanStartTime: now,
-    async fetchImpl(url) {
+    async fetchImpl(url, options) {
+      assert.equal(options.method, "GET", "scan uses read-only requests");
       now += 100;
       const parsed = new URL(url);
       if (parsed.pathname.endsWith('/messages')) {
+        assert.equal(parsed.searchParams.has('q'), false, 'metadata scope forbids Gmail API search queries');
         return new Response(JSON.stringify(parsed.searchParams.has('pageToken')
           ? { messages: [ids[0], ...ids.slice(500)] }
           : { messages: ids.slice(0, 500), nextPageToken: 'page-2' }));
       }
+      assert.equal(parsed.searchParams.get('format'), 'metadata');
+      assert.deepEqual(parsed.searchParams.getAll('metadataHeaders'), ['From', 'List-Unsubscribe']);
+      assert.equal(parsed.searchParams.get('fields'), 'id,threadId,internalDate,labelIds,payload/headers');
       const id = parsed.pathname.split('/').pop();
       fetchedIds.push(id);
-      return new Response(JSON.stringify({ id, internalDate: '1000', payload: { headers: [] } }));
+      return new Response(JSON.stringify({
+        id, threadId: 'test-thread', internalDate: '1000', labelIds: ['INBOX'],
+        payload: { headers: [
+          { name: 'From', value: 'Newsletter <news@example.com>' },
+          { name: 'List-Unsubscribe', value: '<mailto:unsubscribe@example.com>' }
+        ] }
+      }));
     },
     onProgress(update) { updates.push(update); }
   });
   assert.equal(result.processedCount, 620);
+  assert.ok(result.normalizedEmails.every(email => email.fromEmail === 'news@example.com' && email.fromDomain === 'example.com' && email.hasUnsubscribeHeader && email.labelIds.includes('INBOX')), 'metadata fields still support sender/domain/subscription analysis');
   assert.equal(new Set(fetchedIds).size, 620, 'deduplicate listing');
   assert.ok(updates.some(p => p.phase === 'scanning' && p.processedCount > 0 && p.processedCount < 500), 'mid-page updates');
   assert.ok(updates.filter(p => p.phase === 'scanning').every(p => p.totalCount === 620), 'known total');
@@ -281,6 +293,10 @@ try {
     const sourceManifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
     const publicKey = (await readFile(new URL('../scripts/extension-public-key.txt', import.meta.url), 'utf8')).trim();
     assert.equal(sourceManifest.key, publicKey, 'source uses audited test public key');
+    assert.deepEqual(sourceManifest.oauth2.scopes, ['https://www.googleapis.com/auth/gmail.metadata'], 'request only metadata permission');
+    const privacyPolicy = await readFile(new URL('../privacy.html', import.meta.url), 'utf8');
+    assert.ok(privacyPolicy.includes('https://www.googleapis.com/auth/gmail.metadata'));
+    assert.ok(!privacyPolicy.includes('https://www.googleapis.com/auth/gmail.readonly'));
   } finally {
     globalThis.setInterval = interval;
     globalThis.clearInterval = clear;

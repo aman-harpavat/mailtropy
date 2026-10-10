@@ -11,14 +11,16 @@
 <body>
 
 <h1>Mailtropy Privacy Policy</h1>
-<p><strong>Effective Date:</strong> [2026-04-12]</p>
+<p><strong>Effective Date:</strong> [2026-10-11]</p>
 
 <h2>1. Overview</h2>
 <p>Mailtropy is a Chrome extension that provides inbox composition analytics for Gmail users. All analysis is performed locally within the user's browser. Mailtropy stores analysis metadata only in local extension storage and does not transmit or sell email data.</p>
 
 <h2>2. Data Access</h2>
-<p>Mailtropy requests read-only access to Gmail using the following scope:</p>
-<p><code>https://www.googleapis.com/auth/gmail.readonly</code></p>
+<p>Mailtropy requests read-only access to Gmail metadata using the following scope:</p>
+<p><code>https://www.googleapis.com/auth/gmail.metadata</code></p>
+
+<p>This scope permits access to message metadata, including headers and labels, but not email bodies or attachments. Mailtropy requests only the fields listed below.</p>
 
 <p>Mailtropy accesses only:</p>
 <ul>

@@ -108,12 +108,46 @@ Changes:
 - Earlier estimates when scanning speed is consistent, with a wider initial range.
 - Reliable reconnect status: success requires an OAuth token.
 - Consistent Gmail OAuth identity when loading the source folder for development.
+- Narrower `gmail.metadata` permission, matching the metadata-only scan.
 
 The test ZIP includes the existing extension public key. The upload ZIP omits
 that key. Both include only runtime files from the build allowlist; plans,
 tests, release scripts, Git history, and local metadata are excluded.
 
-User testing confirmed Gmail connectivity and the dynamic ETA. Automated scan,
+User testing confirmed Gmail connectivity, scanning and expected results with
+the new `gmail.metadata` permission. The dynamic ETA also passed user testing. Automated scan,
 estimator, storage, reconnect, and popup-flow tests passed. Secret checks cover
 working files, all local Git history, and both staged packages. Re-run the build
 checks for any later edits before uploading.
+
+
+## Metadata permission test before uploading
+
+Version remains 1.0.3. The manifest now requests only
+`https://www.googleapis.com/auth/gmail.metadata`; the bundled privacy policy
+has been updated to match. No public key, client ID, UI, or analytics changes
+are needed. This scope still requires Google OAuth verification.
+
+In the existing Google Cloud project's Google Auth Platform **Data Access**,
+add `gmail.metadata` and remove `gmail.readonly` from the declared scopes for
+the intended final release. Keep the existing Chrome Extension OAuth client
+and extension ID. Update any publicly hosted copy of the privacy policy too.
+
+To avoid testing with the old broader authorization:
+
+1. Stop any running scan and disable other Mailtropy copies.
+2. Remove Mailtropy's access in Google Account connections.
+3. Reload the source folder's unpacked extension, or extract the newly rebuilt
+   test ZIP and load that folder. Do not load the upload ZIP for local OAuth tests.
+4. Click Reconnect Gmail and approve the metadata permission. The unverified-app
+   warning can still appear until OAuth verification is approved.
+5. Scan the mailbox and confirm sender/domain/subscription results, ETA,
+   stop/restart, and closing/reopening the popup still work.
+6. Inspect service-worker requests: list calls must not use a `q` parameter;
+   message reads must use `format=metadata`, only the two allowed headers, and
+   the existing field mask. Confirm there are no permission errors.
+
+The deterministic tests enforce these request restrictions and declared scope,
+but cannot authenticate with a real Google account. Upload only after the
+fresh-consent Gmail scan succeeds. Both v1.0.3 ZIPs were rebuilt for this scope;
+any previously downloaded v1.0.3 ZIP with the old scope is superseded.
