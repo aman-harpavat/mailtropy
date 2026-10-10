@@ -15,6 +15,7 @@ RUNTIME_FILES = (
     "manifest.json", "popup.html", "privacy.html",
     "src/analytics.js", "src/background.js", "src/constants.js",
     "src/gmailClient.js", "src/popup.js", "src/storage.js", "src/styles.css",
+    "src/scanProgress.js",
     "assets/icon.png", "assets/icon-16.png", "assets/icon-48.png", "assets/icon-128.png",
 )
 

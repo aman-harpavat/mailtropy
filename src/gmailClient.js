@@ -1,3 +1,5 @@
+import { createScanEstimator } from "./scanProgress.js";
+
 const GMAIL_MESSAGES_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const LIST_PAGE_SIZE = 500;
 const MAX_MESSAGES = 50000;
@@ -158,7 +160,7 @@ function isQuotaRelated403(errorPayload) {
 async function gmailGet(
   url,
   accessToken,
-  { fetchImpl = fetch, signal, scanStartTime, onQuotaRetry } = {}
+  { fetchImpl = fetch, signal, scanStartTime, onQuotaRetry, onRetry } = {}
 ) {
   for (let retry = 0; ; retry += 1) {
     throwIfAborted(signal);
@@ -196,6 +198,9 @@ async function gmailGet(
       if (canRetryFailure) {
         const jitter = Math.floor(Math.random() * 201);
         const delay = Math.min(BACKOFF_BASE_MS * (2 ** retry), MAX_BACKOFF_MS) + jitter;
+        if (typeof onRetry === "function") {
+          await onRetry(delay);
+        }
         await sleepWithSignal(delay, signal);
         continue;
       }
@@ -244,6 +249,9 @@ async function gmailGet(
         setQuotaBackoff(delay);
       }
 
+      if (typeof onRetry === "function") {
+        await onRetry(delay);
+      }
       await sleepWithSignal(delay, signal);
       continue;
     }
@@ -386,7 +394,7 @@ export function normalizeBatch(rawMessages) {
  *   fetchImpl?: typeof fetch,
  *   signal?: AbortSignal,
  *   scanStartTime?: number | null,
- *   onProgress?: (progress: { nextPageToken: string | null, processedCount: number, scanStartTime: number }) => Promise<void> | void
+ *   onProgress?: (progress: { nextPageToken: string | null, processedCount: number, scanStartTime: number, totalCount: number, phase: string, retryUntil: number, updatedAt: number, etaLowerSeconds: number | null, etaUpperSeconds: number | null }) => Promise<void> | void
  * }} options
  * @returns {Promise<{ normalizedEmails: NormalizedEmail[], nextPageToken: string | null, processedCount: number }>}
  */
@@ -408,91 +416,125 @@ export async function fetchGmailMetadata(
       ? Number(initialScanStartTime)
       : Date.now();
   let nextPageToken = null;
-  const processedIds = new Set();
+  const messageIds = new Set();
   const normalizedEmails = [];
   let processedCount = 0;
   let dynamicConcurrency = Math.min(CONCURRENT_REQUESTS, Math.max(MIN_CONCURRENCY, INITIAL_CONCURRENCY));
+  let phase = "counting";
+  let retryUntil = 0;
+  let lastPublishedAt = 0;
+  let publication = Promise.resolve();
+  const estimator = createScanEstimator();
 
+  async function publish(force = false) {
+    const now = Date.now();
+    if (!force && now - lastPublishedAt < 2000) {
+      return;
+    }
+    lastPublishedAt = now;
+    const eta = phase === "scanning" && now >= retryUntil
+      ? estimator.sample(now, processedCount, messageIds.size)
+      : null;
+    const snapshot = {
+      nextPageToken,
+      processedCount,
+      scanStartTime,
+      totalCount: messageIds.size,
+      phase,
+      retryUntil,
+      updatedAt: now,
+      etaLowerSeconds: eta?.lower ?? null,
+      etaUpperSeconds: eta?.upper ?? null
+    };
+    // Serialize writes from concurrent workers so older counts cannot overwrite newer ones.
+    publication = publication.then(async () => {
+      throwIfAborted(signal);
+      if (typeof onProgress === "function") {
+        await onProgress(snapshot);
+      }
+    });
+    await publication;
+  }
+
+  async function onRetry(delay) {
+    const now = Date.now();
+    const alreadyWaiting = retryUntil > now;
+    retryUntil = Math.max(retryUntil, now + delay);
+    estimator.reset(retryUntil, processedCount);
+    await publish(!alreadyWaiting);
+  }
+
+  await publish(true);
+  // Count the actual list workload; Gmail's resultSizeEstimate is not an exact total.
   do {
     throwIfAborted(signal);
     assertGlobalScanWindow(scanStartTime);
+    const page = await gmailGet(buildListUrl(nextPageToken), accessToken, {
+      fetchImpl, signal, scanStartTime, onRetry
+    });
+    for (const message of Array.isArray(page?.messages) ? page.messages : []) {
+      if (messageIds.size >= MAX_MESSAGES) {
+        break;
+      }
+      if (typeof message?.id === "string") {
+        messageIds.add(message.id);
+      }
+    }
+    nextPageToken = typeof page?.nextPageToken === "string" ? page.nextPageToken : null;
+    await publish();
+  } while (nextPageToken && messageIds.size < MAX_MESSAGES);
 
+  phase = "scanning";
+  nextPageToken = null;
+  retryUntil = 0;
+  estimator.reset(Date.now(), 0);
+  await publish(true);
+  const ids = Array.from(messageIds);
+
+  for (let offset = 0; offset < ids.length; offset += LIST_PAGE_SIZE) {
     let pageQuotaRetryCount = 0;
     const trackQuotaRetry = () => {
       pageQuotaRetryCount += 1;
     };
-
-    const page = await gmailGet(buildListUrl(nextPageToken), accessToken, {
-      fetchImpl,
-      signal,
-      scanStartTime,
-      onQuotaRetry: trackQuotaRetry
-    });
-    const messages = Array.isArray(page?.messages) ? page.messages : [];
-    const queue = [];
-    const remainingSlots = Math.max(0, MAX_MESSAGES - processedCount);
-
-    for (const message of messages) {
-      if (queue.length >= remainingSlots) {
-        break;
-      }
-      if (typeof message?.id === "string" && !processedIds.has(message.id)) {
-        queue.push(message.id);
-      }
-    }
-
+    const queue = ids.slice(offset, offset + LIST_PAGE_SIZE);
     const workerCount = Math.min(dynamicConcurrency, queue.length);
 
+    let workerFailed = false;
     async function worker() {
-      while (queue.length > 0) {
-        throwIfAborted(signal);
-        assertGlobalScanWindow(scanStartTime);
-
-        if (processedCount >= MAX_MESSAGES) {
-          return;
+      try {
+        while (queue.length > 0 && !workerFailed) {
+          throwIfAborted(signal);
+          assertGlobalScanWindow(scanStartTime);
+          const id = queue.pop();
+          const metadata = await gmailGet(buildMetadataUrl(id), accessToken, {
+            fetchImpl, signal, scanStartTime, onQuotaRetry: trackQuotaRetry, onRetry
+          });
+          normalizedEmails.push(normalizeMessage(metadata));
+          processedCount += 1;
+          await publish();
         }
-
-        const id = queue.pop();
-        if (!id || processedIds.has(id)) {
-          continue;
-        }
-
-        const metadata = await gmailGet(buildMetadataUrl(id), accessToken, {
-          fetchImpl,
-          signal,
-          scanStartTime,
-          onQuotaRetry: trackQuotaRetry
-        });
-        processedIds.add(id);
-        normalizedEmails.push(normalizeMessage(metadata));
-        processedCount += 1;
+      } catch (error) {
+        workerFailed = true;
+        throw error;
       }
     }
 
-    if (workerCount > 0) {
-      await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    // Wait for all workers before leaving this job, including when one fails.
+    const results = await Promise.allSettled(Array.from({ length: workerCount }, () => worker()));
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed) {
+      throw failed.reason;
     }
-
-    if (typeof onProgress === "function") {
-      await onProgress({
-        nextPageToken: typeof page?.nextPageToken === "string" ? page.nextPageToken : null,
-        processedCount,
-        scanStartTime
-      });
-    }
-
+    await publish(true);
     if (pageQuotaRetryCount > 0) {
       dynamicConcurrency = Math.max(MIN_CONCURRENCY, Math.floor(dynamicConcurrency * 0.75));
     } else {
       dynamicConcurrency = Math.min(CONCURRENT_REQUESTS, dynamicConcurrency + 1);
     }
+  }
 
-    nextPageToken = typeof page?.nextPageToken === "string" ? page.nextPageToken : null;
-  } while (nextPageToken && processedCount < MAX_MESSAGES);
-
-  return {
-    normalizedEmails,
-    nextPageToken: null,
-    processedCount
-  };
+  phase = "finishing";
+  retryUntil = 0;
+  await publish(true);
+  return { normalizedEmails, nextPageToken: null, processedCount };
 }

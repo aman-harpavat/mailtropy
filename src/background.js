@@ -88,14 +88,6 @@ async function tryRecoverAuthToken(token) {
   return getTokenWithFallback();
 }
 
-async function triggerReauthFlow() {
-  try {
-    await getTokenWithFallback();
-  } catch (error) {
-    console.error("Re-authentication failed:", error?.message || "Unknown error");
-  }
-}
-
 async function initializeStaleRunningState() {
   const scanProgress = await getScanProgressState();
   if (scanProgress.scanStatus === "running") {
@@ -186,9 +178,7 @@ async function runAnalysisJob(prevalidatedToken = null) {
         onProgress: async (progress) => {
           await saveScanProgressState({
             scanStatus: "running",
-            nextPageToken: progress.nextPageToken,
-            processedCount: progress.processedCount,
-            scanStartTime: progress.scanStartTime
+            ...progress
           });
         }
       });
@@ -411,10 +401,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === RECONNECT_GMAIL_MESSAGE) {
-    sendResponse({ started: true });
     (async () => {
       if (activeScanController) {
         activeScanController.abort();
+      }
+      if (activeScanPromise) {
+        await activeScanPromise;
       }
 
       await clearAuthToken(activeAccessToken);
@@ -440,11 +432,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         startedAt: null,
         finishedAt: Date.now()
       });
-      await triggerReauthFlow();
+      sendResponse({ started: true });
     })().catch((error) => {
       console.error("Reconnect failed:", error?.message || "Unknown error");
+      sendResponse({ started: false, error: error?.message || "Reconnect reset failed." });
     });
-    return;
+    return true;
   }
 
   if (message.type === CANCEL_ANALYSIS_MESSAGE) {

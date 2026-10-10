@@ -129,7 +129,8 @@ export async function saveScanProgressState(scanProgressState) {
       scanStatus: safeStatus,
       nextPageToken: safeNextPageToken,
       processedCount: Number.isFinite(safeProcessedCount) && safeProcessedCount >= 0 ? safeProcessedCount : 0,
-      scanStartTime: Number.isFinite(safeScanStartTime) ? safeScanStartTime : null
+      scanStartTime: Number.isFinite(safeScanStartTime) ? safeScanStartTime : null,
+      ...sanitizeProgressDetails(source)
     }
   });
 }
@@ -151,6 +152,19 @@ export async function getScanProgressState() {
     scanStatus: typeof value.scanStatus === "string" ? value.scanStatus : "idle",
     nextPageToken: typeof value.nextPageToken === "string" ? value.nextPageToken : null,
     processedCount: Number.isFinite(value.processedCount) && value.processedCount >= 0 ? value.processedCount : 0,
-    scanStartTime: Number.isFinite(value.scanStartTime) ? value.scanStartTime : null
+    scanStartTime: Number.isFinite(value.scanStartTime) ? value.scanStartTime : null,
+    ...sanitizeProgressDetails(value)
+  };
+}
+
+function sanitizeProgressDetails(source) {
+  const nonnegative = (value) => Number.isFinite(value) && value >= 0 ? value : null;
+  return {
+    totalCount: nonnegative(source.totalCount),
+    updatedAt: nonnegative(source.updatedAt),
+    retryUntil: nonnegative(source.retryUntil),
+    etaLowerSeconds: nonnegative(source.etaLowerSeconds),
+    etaUpperSeconds: nonnegative(source.etaUpperSeconds),
+    phase: ["counting", "scanning", "finishing"].includes(source.phase) ? source.phase : null
   };
 }

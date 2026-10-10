@@ -1,3 +1,5 @@
+import { formatScanProgress } from "./scanProgress.js";
+
 const analyzeBtn = document.getElementById("analyzeBtn");
 const loadingPlaceholderEl = document.getElementById("loadingPlaceholder");
 const statusEl = document.getElementById("status");
@@ -40,10 +42,14 @@ function sendRuntimeMessage(message) {
 }
 
 function getAuthToken(interactive) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.identity.getAuthToken({ interactive }, (token) => {
-      if (chrome.runtime.lastError || !token) {
-        resolve(null);
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!token) {
+        reject(new Error("No OAuth token returned. Please reconnect Gmail."));
         return;
       }
       resolve(token);
@@ -716,6 +722,7 @@ async function pollAnalysisJobState() {
       setLoadingState();
     }
     analyzeBtn.textContent = "Stop Scan";
+    renderScanProgress(scanProgress);
     return;
   }
 
@@ -764,6 +771,19 @@ function updateScanUI() {
   analyticsContainerEl.hidden = !shouldShow;
 }
 
+function renderScanProgress(progress) {
+  if (currentState !== STATE_ANALYZING) {
+    return;
+  }
+  const description = loadingPlaceholderEl?.querySelector(".loading-description");
+  if (description) {
+    const text = formatScanProgress(progress);
+    if (description.textContent !== text) {
+      description.textContent = text;
+    }
+  }
+}
+
 function updateLoadingState() {
   if (!loadingPlaceholderEl) {
     return;
@@ -776,7 +796,7 @@ function updateLoadingState() {
           <div class="loading-indicator" aria-hidden="true"></div>
           <div class="loading-text">
             <p class="loading-title">Analyzing your inbox…</p>
-            <p class="loading-description">This may take some time depending on your email volume.</p>
+            <p class="loading-description">Counting emails…</p>
           </div>
         </div>
       `;
@@ -844,6 +864,7 @@ export async function loadExistingData() {
   if (scanStatus === "running" || jobStatus === "running") {
     latestAnalyticsResult = null;
     setLoadingState();
+    renderScanProgress(scanProgress);
     startJobStatePolling();
     return;
   }
@@ -923,21 +944,15 @@ export async function init() {
       setStatusMessage("Reconnecting Gmail...");
       reconnectBtn.disabled = true;
 
-      let reconnectMessageError = null;
       try {
-        await sendRuntimeMessage({ type: "RECONNECT_GMAIL" });
-      } catch (error) {
-        reconnectMessageError = error;
-      }
-
-      try {
+        const response = await sendRuntimeMessage({ type: "RECONNECT_GMAIL" });
+        if (!response?.started) {
+          throw new Error(response?.error || "Reconnect reset failed. Please try again.");
+        }
         await forceInteractiveReauth();
         setStatusMessage("Gmail reconnected. You can start a new scan.");
       } catch (error) {
         setErrorState(error?.message || "Reconnect failed. Please try again.");
-        if (reconnectMessageError) {
-          console.error("Reconnect reset failed:", reconnectMessageError?.message || "Unknown error");
-        }
         console.error("Reconnect Gmail failed:", error?.message || "Unknown error");
       } finally {
         reconnectBtn.disabled = false;
