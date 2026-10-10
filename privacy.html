@@ -1,62 +1,61 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mailtropy Privacy Policy</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; line-height: 1.6; }
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; }
     h1, h2 { color: #222; }
+    code, a { overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
-
+<main>
 <h1>Mailtropy Privacy Policy</h1>
-<p><strong>Effective Date:</strong> [2026-10-11]</p>
+<p><strong>Effective date:</strong> October 11, 2026</p>
+<p>Mailtropy is a free Chrome extension developed by Aman Harpavat. It helps Gmail users understand frequent senders, domain distribution, and subscription-like email so they can decide what to clean up manually in Gmail.</p>
 
-<h2>1. Overview</h2>
-<p>Mailtropy is a Chrome extension that provides inbox composition analytics for Gmail users. All analysis is performed locally within the user's browser. Mailtropy stores analysis metadata only in local extension storage and does not transmit or sell email data.</p>
+<h2>1. Google account access and consent</h2>
+<p>Mailtropy accesses Gmail only after you authorize it through Google OAuth. It uses Chrome's identity API and requests the read-only scope <code>https://www.googleapis.com/auth/gmail.metadata</code>. Scanning starts when you choose to analyze your mailbox and covers up to 50,000 messages.</p>
+<p>You sign in through Google. Mailtropy does not receive or store your Google password. OAuth access tokens are managed by Chrome and used in memory by the extension for authorized Gmail API requests; Mailtropy does not save tokens in its extension storage.</p>
 
-<h2>2. Data Access</h2>
-<p>Mailtropy requests read-only access to Gmail metadata using the following scope:</p>
-<p><code>https://www.googleapis.com/auth/gmail.metadata</code></p>
-
-<p>This scope permits access to message metadata, including headers and labels, but not email bodies or attachments. Mailtropy requests only the fields listed below.</p>
-
-<p>Mailtropy accesses only:</p>
+<h2>2. Data accessed and how it is used</h2>
+<p>Mailtropy lists messages and requests only message IDs, thread IDs, message timestamps, label IDs, and the From and List-Unsubscribe headers. It does not request email bodies, subject lines, snippets, or attachments.</p>
 <ul>
-  <li>Message ID</li>
-  <li>Thread ID</li>
-  <li>Timestamp</li>
-  <li>Label IDs</li>
-  <li>From header</li>
-  <li>List-Unsubscribe header</li>
+  <li><strong>From header:</strong> the sender email address and domain are extracted to calculate sender and domain counts, percentages, and concentration.</li>
+  <li><strong>List-Unsubscribe header:</strong> its presence is used to identify subscription-like messages. The unsubscribe address or URL is not saved or followed.</li>
+  <li><strong>Message and thread IDs:</strong> identify messages in the processed metadata; message IDs help avoid duplicate counting.</li>
+  <li><strong>Timestamps and label IDs:</strong> form part of the local message metadata. Timestamps are also converted to month and year values.</li>
 </ul>
+<p>These data are used only to provide Mailtropy's inbox analysis and cleanup guidance. Subscription signals are estimates based on header presence, not a guarantee that a sender is a subscription. Mailtropy does not send, modify, delete, archive, or unsubscribe from email. You perform any cleanup yourself in Gmail.</p>
 
-<p>Mailtropy does <strong>not</strong> access:</p>
-<ul>
-  <li>Email body content</li>
-  <li>Attachments</li>
-  <li>Email snippets</li>
-  <li>Email subject lines</li>
-</ul>
+<h2>3. Local processing and storage</h2>
+<p>Gmail API responses are processed in your browser. Mailtropy stores normalized message metadata in <code>chrome.storage.local</code>: message and thread IDs, sender email addresses and domains, timestamps, month/year values, label IDs, and a boolean indicating whether a List-Unsubscribe header was present.</p>
+<p>It also stores computed analytics, the last scan time, and scan status/progress information such as counts, pagination state, timing estimates, and error status. Raw API responses and full header values are not persisted.</p>
+<p>Mailtropy has no backend or remote database for Gmail data. Stored metadata and results are kept in the extension's local storage, not Chrome's sync storage.</p>
 
-<h2>3. Data Storage</h2>
-<p>All analysis occurs locally within the Chrome extension. Mailtropy does not transmit email data to external servers and does not use remote databases.</p>
+<h2>4. Sharing and prohibited uses</h2>
+<p>Mailtropy communicates directly with Google over HTTPS to authenticate and retrieve authorized Gmail metadata. It does not upload mailbox data to the developer, this website, analytics providers, or other third parties. The developer does not have remote access to your locally stored mailbox data.</p>
+<p>Mailtropy does not sell or share Google user data, use it for advertising or profiling outside the inbox analytics feature, or use it to develop, improve, or train AI or machine-learning models. It contains no advertising or analytics trackers.</p>
+<p>Mailtropy's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/workspace/workspace-api-user-data-developer-policy">Google Workspace API User Data and Developer Policy</a>, including its Limited Use requirements.</p>
 
-<h2>4. Data Sharing</h2>
-<p>Mailtropy does not sell, share, or transfer user data to third parties.</p>
+<h2>5. Retention, deletion, and your controls</h2>
+<p>Local metadata and analytics remain on your device until replaced by a new scan or removed. Starting a new analysis clears the previous stored message metadata and analytics. You can stop a running scan.</p>
+<p>To remove all extension-stored data, uninstall Mailtropy from Chrome. No developer-held copy exists to delete. Removing Mailtropy's access in your Google Account prevents future authorized Gmail access, but does not automatically delete results already stored locally. Uninstall the extension as well if you want those results removed.</p>
+<p>You can revoke authorization through <a href="https://myaccount.google.com/connections">Google Account third-party connections</a>. Reconnecting Gmail requests authorization through Chrome and Google as needed.</p>
 
-<h2>5. User Control</h2>
-<p>Mailtropy does not modify, delete, archive, or unsubscribe users from emails. All cleanup actions are performed manually by the user within Gmail.</p>
+<h2>6. Security</h2>
+<p>Requests to Google's OAuth services and Gmail API use HTTPS. Mailtropy limits requested data to the metadata described above and relies on Chrome's extension storage and access controls. Local storage is not an additional encrypted vault; protect your device and browser profile from unauthorized access.</p>
 
-<h2>6. Data Retention</h2>
-<p>Email metadata remains in local extension storage. Users may remove all stored data by uninstalling the extension.</p>
+<h2>7. Website and support</h2>
+<p>The public Mailtropy website is hosted on GitHub Pages. Visiting it does not connect to your Gmail account or expose your mailbox metadata. GitHub may process technical information, including IP addresses, to operate and secure its hosting service; see the <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub Privacy Statement</a>.</p>
+<p>If you email support, the developer receives the information you choose to send and uses it to answer your request. Do not send passwords, access tokens, or private email content.</p>
 
-<h2>7. Security</h2>
-<p>Mailtropy follows a zero-server architecture. No backend infrastructure exists.</p>
-
-<h2>8. Contact</h2>
-<p>For privacy-related questions, contact: amanharpavatdev@gmail.com</p>
-
+<h2>8. Policy updates and contact</h2>
+<p>Changes to this policy will be published here with an updated effective date. Material changes to Google user data access or use will be disclosed before they take effect, with renewed consent where required.</p>
+<p>For privacy questions, contact <a href="mailto:amanharpavatdev@gmail.com">amanharpavatdev@gmail.com</a>.</p>
+<p><a href="https://aman-harpavat.github.io/mailtropy/">Mailtropy homepage</a></p>
+</main>
 </body>
 </html>
